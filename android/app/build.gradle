@@ -1,0 +1,59 @@
+apply plugin: 'com.android.application'
+
+// ★ 签名信息从 android/keystore.properties 读取（该文件不入库，见 keystore.properties.example）
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file("keystore.properties")
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
+android {
+    compileSdkVersion 30
+    buildToolsVersion "30.0.3"
+
+    defaultConfig {
+        applicationId "com.andyluoqin.englishbuddy"
+        minSdkVersion 21
+        targetSdkVersion 30
+        versionCode 4
+        versionName "1.0.4"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file(keystoreProps['storeFile'] ?: "englishbuddy.keystore")
+            storePassword keystoreProps['storePassword']
+            keyAlias keystoreProps['keyAlias']
+            keyPassword keystoreProps['keyPassword']
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.release
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        // compileSdk 30 环境下强制使用兼容版本的传递依赖
+        force 'androidx.core:core:1.6.0'
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.3.1'
+    implementation 'androidx.core:core:1.6.0'
+    implementation 'androidx.media:media:1.3.1'
+    implementation 'com.google.android.exoplayer:exoplayer-core:2.17.1'
+}

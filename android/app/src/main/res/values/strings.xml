@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">英语小伙伴</string>
+    <string name="splash_hint">英语学习 · 电台 · 生词本</string>
+    <string name="channel_name">播放控制</string>
+    <string name="notif_ready">英语小伙伴</string>
+    <string name="tts_unavailable">当前设备未安装英文语音数据，无法发音</string>
+</resources>

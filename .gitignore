@@ -1,0 +1,36 @@
+# ===== 本地大数据资产（体积过大，不入库）=====
+audio/
+video/
+site/audio/
+site/video/
+
+# ===== 临时目录 / 工作区 =====
+.temp/
+
+# ===== 构建产物 =====
+android/.gradle/
+android/build/
+android/app/build/
+*.apk
+*.aab
+
+# ===== 签名密钥与本机配置（严禁入库）=====
+*.keystore
+*.jks
+android/keystore.properties
+android/local.properties
+
+# ===== 流水线运行时文件 =====
+*.lock
+*.tsv
+
+# ===== 根目录旧版单页（已被 site/ 取代）=====
+/index.html
+
+# ===== Python =====
+__pycache__/
+*.pyc
+
+# ===== 系统 =====
+Thumbs.db
+.DS_Store
