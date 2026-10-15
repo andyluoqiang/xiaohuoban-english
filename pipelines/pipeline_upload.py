@@ -73,13 +73,42 @@ def compress(src, dest):
         return False
 
 
+# 噪声行（音频页头尾的下载/嵌入/分享区块，独占一行才剔除）
+NOISE_LINE = re.compile(
+    r'^\s*(Direct\s*link|'
+    r'\d+\s*kbps\s*\|\s*MP3|'
+    r'Pop-out\s*player|'
+    r'Embed|share|'
+    r'The\s*code\s*has\s*been\s*copied\s*to\s*your\s*clipboard\.?|'
+    r'The\s*URL\s*has\s*been\s*copied\s*to\s*your\s*clipboard\.?|'
+    r'No\s*media\s*source\s*currently\s*available|'
+    r'Download\s+Lesson\s+\d+)\s*$', re.I)
+# 独立成行的分隔线长串（连续下划线/横线等 ≥6 个），渲染为 md 分隔线
+SEP_LINE = re.compile(r'^[\s_\u2010-\u2015\u00ad\u2500\u2501={6,}]{6,}$')
+ENTITY = re.compile(r'&(?:quot|amp|lt|gt|nbsp|apos|#x27|#39|#160|#x2019|#x2013|#x2014);')
+
+
 def build_content_md(article_txt):
-    """从 article.txt 提取正文 markdown（去掉头部元信息和 ## Article 标题）"""
+    """从 article.txt 提取正文 markdown（去掉头部元信息和 ## Article 标题），
+    并剔除噪声行（Direct link/kbps/Pop-out 等）与超长下划线串（防横向滚动），
+    还原字面 HTML 实体（前端会正确转义）。"""
     txt = open(article_txt, encoding='utf-8').read()
     m = re.search(r'## Article\s*\n(.*)$', txt, re.S)
     if not m:
         return ''
-    return m.group(1).strip()
+    body = m.group(1).strip()
+    lines = []
+    for ln in body.split('\n'):
+        if NOISE_LINE.match(ln):
+            continue
+        lines.append('---' if SEP_LINE.match(ln) else ln)
+    body = '\n'.join(lines)
+    body = re.sub(r'_{4,}', ' ', body)
+    body = body.replace('\u00ad', '')
+    if ENTITY.search(body):
+        import html as H
+        body = H.unescape(body)
+    return body
 
 
 def build_content_html(article_dir):

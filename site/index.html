@@ -134,7 +134,7 @@ body.swiping{-webkit-user-select:none;user-select:none}
 .plabel span:nth-child(2){flex:1.4}
 .summary{margin:12px 16px 0;background:var(--sky);border-left:3.5px solid var(--azure);border-radius:10px;padding:9px 12px;font-size:12px;color:#36506e;line-height:1.65}
 .art-title{font-size:13px;font-weight:800;color:var(--azure-d);margin:14px 16px 4px}
-.article{padding:0 16px 24px;font-size:15.5px;line-height:2.05;color:#2b3648}
+.article{padding:0 16px 24px;font-size:15.5px;line-height:2.05;color:#2b3648;overflow-wrap:break-word;word-break:break-word}
 .article .ori{padding-top:4px}
 .article .ori p{margin-bottom:13px;text-align:justify}
 .article .ori ul,.article .ori ol{margin:6px 0 13px;padding-left:20px}
@@ -784,7 +784,22 @@ function tmplVideoPlayer(e, a){
   return h;
 }
 function wordify(text){
-  return esc(text).replace(/[A-Za-z]+(?:['’-][A-Za-z]+)?/g, function(m){
+  /* ★ 实体保护：esc() 产生的 &quot; 等实体会被下方 [A-Za-z]+ 当成单词（quot）
+     包进 span 导致实体断裂、页面上按字面显示 "&quot;"。
+     先把实体占位切分，仅对非实体段做单词包裹。 */
+  var e = esc(text);
+  var ENT = /&(?:amp|lt|gt|quot|apos|nbsp|#x27|#39|#160|#x2019);/g;
+  ENT.lastIndex = 0;
+  var out = '', last = 0, m;
+  while((m = ENT.exec(e)) !== null){
+    out += wrapWords(e.slice(last, m.index)) + m[0];
+    last = m.index + m[0].length;
+  }
+  out += wrapWords(e.slice(last));
+  return out;
+}
+function wrapWords(seg){
+  return seg.replace(/[A-Za-z]+(?:['’-][A-Za-z]+)?/g, function(m){
     return '<span class="w" onclick="wordTap(event,this)" data-w="'+m.toLowerCase()+'">'+m+'</span>';
   });
 }
