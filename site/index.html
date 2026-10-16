@@ -837,8 +837,10 @@ function wordify(text){
   return out;
 }
 function wrapWords(seg){
+  /* ★ 点击不再用 inline onclick，改由全局事件委托处理（见文档尾部 tapDelegator）
+     ——inline 属性在 cleanHtml 的 DOM 序列化路径会丢失，导致 HTML 正文单词点不动 */
   return seg.replace(/[A-Za-z]+(?:['’-][A-Za-z]+)?/g, function(m){
-    return '<span class="w" onclick="wordTap(event,this)" data-w="'+m.toLowerCase()+'">'+m+'</span>';
+    return '<span class="w" data-w="'+m.toLowerCase()+'">'+m+'</span>';
   });
 }
 /* ★★ content_html 安全清洗：VOA 原文 HTML 常含未闭合标签/播放器/quiz/share 等噪声，
@@ -867,8 +869,7 @@ function cleanHtml(raw){
         var sp = document.createElement('span');
         sp.className = 'w';
         sp.setAttribute('data-w', m[0].toLowerCase());
-        sp.onclick = function(ev){ wordTap(ev, this); };
-        sp.textContent = m[0];
+        sp.textContent = m[0];   // ★ 不设 DOM onclick：序列化（innerHTML）会丢失，统一走全局委托
         frag.appendChild(sp);
         last = re.lastIndex;
       }
@@ -988,6 +989,16 @@ function wordTap(ev, el){
     showTip(el, word, lookupZh(word) || '暂无释义');
   });
 }
+/* ★ 全局单词条目事件委托：两条正文渲染路径（content_md 的 wordify 与
+   content_html 的 cleanHtml）统一在此处理点击。
+   之前 md 路径用 inline onclick、html 路径用 DOM onclick——后者随
+   innerHTML 序列化丢失，导致原文 HTML 类文章（Presidents/Anna 等）单词点不动。 */
+document.addEventListener('click', function(ev){
+  var el = ev.target && ev.target.closest ? ev.target.closest('.w[data-w]') : null;
+  if(!el) return;
+  if(ev.target.closest('a,button,input,textarea,select')) return;  // 可交互元素内的词跳过
+  wordTap(ev, el);
+}, false);
 function showTip(el, word, zh){
   // remove old tip
   var old = document.querySelector('.tip,.tipmask');
