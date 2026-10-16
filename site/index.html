@@ -650,11 +650,23 @@ function openEp(title, prog){
   }
   if(!e){ toast('未找到课程'); return; }
   state.ep = e; state.prog = prog;
-  if(e.v || !e.j){
-    // 视频/占位记录：无文章 JSON，直接进入播放页
-    state.article = {summary: '', paragraphs: []};
-    // ★ 视频也标记 curPlay(kind:'ep')，使右滑/返回键正确回到节目列表（而非广播页）
+  if(e.v){
+    // ★ 视频条目：设置 curPlay（返回路由）；有 j 时也加载正文（此前一律跳过，
+    //   导致 Presidents/Anna 等带正文的视频节目正文不显示）
     curPlay = {kind:'ep', url:epAudioUrl(e), title:e.t, sub:(state.prog||'') + ' · 视频课程'};
+    if(e.j){
+      loadJSON(apiUrl(e.j)).then(function(a){
+        state.article = a; render('player');
+      }).catch(function(){ toast('正文加载失败'); state.article = {summary:'', paragraphs:[]}; render('player'); });
+    } else {
+      state.article = {summary: '', paragraphs: []};
+      render('player');
+    }
+    return;
+  }
+  if(!e.j){
+    // 占位记录：无文章 JSON，直接进入播放页
+    state.article = {summary: '', paragraphs: []};
     render('player');
     return;
   }
