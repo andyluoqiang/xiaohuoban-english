@@ -475,7 +475,24 @@ function boot(){
 }
 
 /* ---------- router ---------- */
+/* ★ 列表滚动位置记忆：离开 progpage（集数列表）/home（节目列表）时记录
+   .scroll 的 scrollTop，返回时恢复，不再跳回顶部。
+   key 维度：progpage=媒体类型+难度+节目；home=媒体类型+难度。
+   LAST_SCROLL_KEY 保存"当前渲染页"的 key（离开时 state.prog 可能已被
+   openProg 改成新节目，不能用实时 state 拼 key）。 */
+var SCROLL_POS = {};
+var LAST_SCROLL_KEY = null;
+function _scrollKey(v){
+  if(v === 'progpage') return 'sp:prog:' + state.type + ':' + state.diff + ':' + (state.prog || '');
+  if(v === 'home') return 'sp:home:' + state.type + ':' + state.diff;
+  return null;
+}
 function render(view){
+  // ★ 离开前：记录当前列表滚动位置
+  var oldSc = document.querySelector('.view.show .scroll');
+  if(oldSc && LAST_SCROLL_KEY){
+    try{ SCROLL_POS[LAST_SCROLL_KEY] = oldSc.scrollTop; }catch(e){}
+  }
   state.view = view;
   if(view === 'home' || view === 'radio') state.subview = null;
   var app = document.getElementById('app');
@@ -489,6 +506,15 @@ function render(view){
   else if(view === 'wordbook') app.innerHTML = tmplWordbook();
   else if(view === 'radio') { app.innerHTML = tmplRadio(); bindRadio(); }
   else if(view === 'settings') app.innerHTML = tmplSettings();
+  // ★ 返回列表时恢复滚动位置（progpage/home）
+  LAST_SCROLL_KEY = _scrollKey(view);
+  if(LAST_SCROLL_KEY){
+    var st = SCROLL_POS[LAST_SCROLL_KEY];
+    if(st){
+      var sc = document.querySelector('.view.show .scroll');
+      if(sc) sc.scrollTop = st;
+    }
+  }
 }
 
 /* ---------- template: home ---------- */
