@@ -488,6 +488,10 @@ function _scrollKey(v){
   return null;
 }
 function render(view){
+  // ★ 离开播放页时停止音频：返回按钮/右滑手势/Android 返回键三条路径都经过这里
+  if(state.view === 'player' && view !== 'player' && curPlay.kind === 'ep'){
+    try{ stopPlay(); }catch(e){}
+  }
   // ★ 离开前：记录当前列表滚动位置
   var oldSc = document.querySelector('.view.show .scroll');
   if(oldSc && LAST_SCROLL_KEY){
