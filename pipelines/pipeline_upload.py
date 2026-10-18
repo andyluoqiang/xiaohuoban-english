@@ -244,10 +244,13 @@ def manifest_lock(timeout=30):
         lf.close()
 
 
-def eps_sort_key(x):
+def eps_sort_key(x, prog_name=None):
     """★ 排序：标题含 'Lesson N' 的节目（如 Let's Learn English）按 N 数字升序，
-    避免按发布日期字符串排序把 Lesson 1 排到最后；其余退化按 id。"""
+    避免按发布日期字符串排序把 Lesson 1 排到最后；其余退化按 id。
+    另：America's Presidents 把 George Washington 固定第一（总统任期序，2026-10-18 用户指示）。"""
     t = x.get('t', '') or ''
+    if prog_name and 'president' in prog_name.lower() and 'george washington' in t.lower():
+        return (-2, 0, x.get('id', ''))
     mm = re.search(r'Lesson\s+(\d+)', t)
     if mm:
         return (0, int(mm.group(1)), x.get('id', ''))
@@ -280,7 +283,7 @@ def merge_base(manifest):
                                  'sz': v.get('sz', 0)}
                     if v.get('c'):
                         have[eid]['c'] = v['c']   # ★ 保留 CDN 直链字段
-            fresh['categories']['audio'][level][prog_name] = sorted(have.values(), key=eps_sort_key)
+            fresh['categories']['audio'][level][prog_name] = sorted(have.values(), key=lambda x: eps_sort_key(x, prog_name))
             merged += len(have)
         except Exception:
             pass
@@ -436,7 +439,7 @@ def main():
                 # 排序并去重（现有 + 新传）
                 seen = set()
                 list_arr = []
-                for e in sorted(prog_arr_ref, key=eps_sort_key):
+                for e in sorted(prog_arr_ref, key=lambda x: eps_sort_key(x, prog_name)):
                     if e['id'] not in seen:
                         seen.add(e['id'])
                         list_arr.append(e)

@@ -27,7 +27,7 @@ PROGS = {
     'z4691': ('English @ the Movies', 'Intermediate', 'english-at-the-movies'),
     'z4716': ('Everyday Grammar TV', 'Intermediate', 'everyday-grammar-tv'),
     'z6042': ('How to Pronounce', 'Beginning', 'how-to-pronounce'),
-    'p8326': ("Let's Learn English with Anna", 'Beginning', 'lets-learn-english-with-anna'),
+    'p8322': ("Let's Learn English with Anna", 'Beginning', 'lets-learn-english-with-anna'),   # 8322=英语版全40集；8326为多语言版(已弃用)
     'p5644': ("Let's Learn English - Level 1", 'Beginning', 'lets-learn-english-level-1'),
     'p6765': ("Let's Learn English - Level 2", 'Beginning', 'lets-learn-english-level-2'),
     'p6764': ("Let's Teach English", 'Advanced', 'lets-teach-english'),
@@ -37,7 +37,12 @@ PROGS = {
     'z3613': ('VOA60: Watch & Learn', 'Intermediate', 'voa60-watch-learn'),
     'z7467': ('Early Literacy', 'Advanced', 'early-literacy'),
     'p6766': ("America's Presidents", 'Advanced', 'america-s-presidents'),
-    'p6353': ('U.S. History', 'Advanced', 'us-s-history'),
+    # ★ 2026-10-18 调整（用户指示）：U.S. History 整体目录取消，其子系列独立成节目
+    'z1581': ('American Stories', 'Advanced', 'american-stories'),          # 视频版：有视频源的故事上线
+    'p7007': ('U.S. Congress', 'Advanced', 'us-congress'),
+    'p6985': ('U.S. Supreme Court', 'Advanced', 'us-supreme-court'),
+    'p5849': ("America's National Parks", 'Advanced', 'america-s-national-parks'),   # 视频版（音频版已有）
+    'p6984': ('Route 66', 'Advanced', 'route-66'),
 }
 
 
@@ -397,7 +402,14 @@ def sync_manifest(pool, pending):
                         arr.append(entry)
                         have[eid] = entry
                         added += 1
-                arr.sort(key=lambda x: x['id'])
+                # ★ 排序：Presidents 系列把 George Washington 固定第一（总统任期序），
+                # 其余按 id；其他节目按 id
+                def _varr_key(x):
+                    t = x.get('t', '').lower()
+                    if 'president' in prog.lower() and 'george washington' in t:
+                        return (0, '')
+                    return (1, x['id'])
+                arr.sort(key=_varr_key)
             fresh['version'] = datetime.datetime.now().strftime('%Y.%m.%d-%H%M')
             json.dump(fresh, open(MP_PATH, 'w', encoding='utf-8'),
                       ensure_ascii=False, separators=(',', ':'))
