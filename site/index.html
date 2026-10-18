@@ -91,7 +91,7 @@ body.swiping{-webkit-user-select:none;user-select:none}
 .favhead .backbtn.rd{color:#c6353a}
 
 /* video player page */
-.video-wrap{margin:10px 16px 0;position:relative}
+.video-wrap{margin:10px 16px 0;position:relative;flex:0 0 auto} /* 视频窗口固定于滚动区外，正文滚动时不随滚动 */
 .video-wrap video{display:block;width:100%;aspect-ratio:16/9;background:#000;border:none;border-radius:13px;box-shadow:0 3px 12px rgba(15,30,51,.18)}
 .qbtn{position:absolute;top:8px;right:8px;z-index:5;background:rgba(13,27,51,.72);color:#fff;border:none;border-radius:14px;padding:5px 11px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
 .qmenu{position:absolute;top:38px;right:8px;z-index:6;background:rgba(13,27,51,.94);border-radius:12px;overflow:visible;box-shadow:0 6px 18px rgba(0,0,0,.4);padding:4px 0;display:none}
@@ -801,7 +801,8 @@ function tmplVideoPlayer(e, a){
     + '<button class="fsopt" data-fs="fs-mid" onclick="applyFs(event,\'fs-mid\')">中号<small>Aa+</small></button>'
     + '<button class="fsopt" data-fs="fs-big" onclick="applyFs(event,\'fs-big\')">大号<small>Aa++</small></button>'
     + '</div></span></div>';
-  h += '<div class="view show"><div class="scroll">';
+  h += '<div class="view show">';
+  // ★ 视频窗口固定：置于滚动区（.scroll）之外，正文上下滚动时视频不随滚动
   // ★ 多档清晰度：默认最低档（流量友好），右上角可切换，失败逐档回退至备份源
   var qs = vQualities(e);
   h += '<div class="video-wrap">'
@@ -810,6 +811,7 @@ function tmplVideoPlayer(e, a){
      + '<div class="qmenu" id="vqMenu">'
      + qs.map(function(q, i){ return '<button class="'+(i===0?'on':'')+'" onclick="switchQuality('+i+')">'+esc(q.label)+'</button>'; }).join('')
      + '</div></div>';
+  h += '<div class="scroll">';
   if(String(e.t).indexOf('[测试]') === 0){
     h += '<div class="cardnote">🎬 这是测试视频记录，用于验证视频播放链路，后续将替换为真实课程视频（最低清晰度）。</div>';
   }
