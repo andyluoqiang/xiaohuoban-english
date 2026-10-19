@@ -142,6 +142,20 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 - **验证**：本地+线上（授权框首弹/再开直连/拒绝记忆/模拟 NotAllowedError 引导文案/重试恢复）全过；APK 构建成功（`android/app/build/outputs/apk/release/englishbuddy-1.0.5.apk`，约 3MB）。**App 需卸载旧版或直接安装覆盖 1.0.5 生效**（升级后 WebView 权限链路才可用）；网页版已即时生效。
 - git：b80dfbb。
 
+### P2.2 自动打断 + 音色选择（2026-10-19 晚）
+
+- **自动打断（用户拍板：不用按钮，检测到用户开口自动停止）**：
+  - 移除「✋ 打断」按钮；打断完全由服务端 semantic VAD 驱动（`input_audio_buffer.speech_started`）。
+  - **关键修复**：事件抓包发现 WebRTC 模式下服务端**不下发** `response.output_audio_started`（AI 音频走 RTP，字幕走 `response.audio_transcript.delta`），原以该事件置位的 `AI.speaking` 从未生效（即打断判断从未激活）。改为在 `response.created` 置位 speaking，首个字幕 delta 二次防御。
+  - 打断动作：`response.cancel` + **立即禁用远端音频轨**（消除已缓冲尾巴，立即静音）+ AI 气泡标注「✂（已打断）」+ 状态复位聆听；新回复 `response.created` 自动解除静音。
+  - 错误态保留「↻ 重试」按钮（仅出错时显示）。
+- **音色选择（官方支持，`session.audio.output.voice` + 顶层 `voice` 双写）**：
+  - 对话浮层头部新增音色按钮（显示当前音色名）；底部弹层 10 款音色：**女 5**（Tina 甜甜/Jennifer 詹妮弗·美式/Mione 敏儿·英式/Serena 苏瑶/Mia 舒然）+ **男 5**（Aiden 艾登·美式/Raymond 林川野/Evan 江晨/Theo Calm 予安/Ryan 甜茶），均为 qwen3.8-omni 系列（28 种外语含英文），附中文名/英文名/风格描述。
+  - 会话中切换：立即 `session.update` 新音色 → 老师用新声音打招呼（预览，真实走 RTP 音频）；未连接时持久化 localStorage 下次会话生效。
+- **验证**（本地+线上）：自动打断全链路（cancel 发送/远端静音/气泡标注/新回复解除静音）、会话中切 Jennifer 与 Aiden 均返回新音色预览问候、错误重试恢复、音色持久化——全部通过，零 error 事件。
+- 附注：免提外放场景存在回声误触发打断的理论风险（测试环境复现过回声 speech_started）；真机依靠浏览器/WebRTC AEC + semantic_vad 抑制，建议真机验证，戴耳机无此问题。
+- git：0d46df5。
+
 ## 七、风险与注意事项
 
 - **计费口径**：各家音频 token 换算不同，上线前用真实录音实测每分钟成本（阿里有 100 万 token 免费额度可先测）。
@@ -154,6 +168,6 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 
 ---
 
-*文档：AI陪练方案.md v2.4 · 2026-10-19*
+*文档：AI陪练方案.md v2.5 · 2026-10-19*
 
 > AI生成
