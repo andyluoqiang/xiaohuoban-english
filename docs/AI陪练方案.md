@@ -1,7 +1,7 @@
 # 英语小伙伴「AI 陪练」实时语音对话功能方案
 
 > 基于 2026-10-19 实测（MiniMax 订阅 Key + 各厂商官网调研 + 阿里 Realtime P0 实测）整理
-> 状态：方案稿 v2.1（P0 已完成实测验证，待确认后进入 P1，暂不改 App 代码）
+> 状态：方案稿 v2.2（P0/P1 已完成并上线原型页，待用户真机体验后进入 P2）
 
 ---
 
@@ -104,7 +104,7 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 | 阶段 | 内容 | 验收 |
 |---|---|---|
 | **P0（先行验证，✅ 已完成 2026-10-19）** | 开通阿里百炼 key（北京地域 + 业务空间 ID）→ Python 脚本实测一轮"录音→AI 语音回复"（验证时延/音色/打断） | ✅ 命令行完成一轮真实对话，实测数据见下节 |
-| P1 | H5 原型页（麦克风实时对话 + 字幕 + 打断），部署到网页版验证 | 浏览器/App 网页版可连续多轮对话 |
+| P1 | H5 原型页（麦克风实时对话 + 字幕 + 打断），部署到网页版验证 | **✅ 已完成 2026-10-19**，线上地址：https://www.jxonline.top/app/lab/realtime.html |
 | P2 | 完整对话页 UI + 设置项 + 多轮上下文 + 状态机 | App 内体验稳定 |
 | P3（可选） | 豆包备选接入（适配层）；后端密钥中转；音色复刻定制 | 安全加固 + 双供应商容灾 |
 
@@ -116,6 +116,14 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 - **回复**：自然口语文本 + 7.0 秒 24kHz PCM 语音（337,920 字节）
 - **成本**：输入 788 / 输出 112 token ≈ **0.006 元/轮**；连续对话估算约 0.02~0.05 元/分钟；同轮按豆包单价估算约 0.07 元（**实测口径阿里便宜约 12 倍**）
 - 结论：**全链路验证通过，1 秒级首音延迟达到"电话式"体验标准，成本可忽略**；服务端 VAD 自动打断留待 P1 H5 原型验证
+
+### P1 实施记录（2026-10-19，WebRTC 版原型已上线）
+
+- **关键架构决策**：浏览器原生 WebSocket 无法携带 Authorization 鉴权头（W3C 规范限制），因此浏览器端不走 WebSocket 直连，改用官方 WebRTC 接入：`RTCPeerConnection`（无 ICE 服务器，服务端处理 NAT）+ `oai-events` DataChannel 交换事件 + 音频 RTP 直传（内置回声消除/降噪），语义 VAD（semantic_vad）自动断句/插话打断。
+- **SDP 交换鉴权**：阿里端点有 CORS 限制不能浏览器直连，由服务端代理——线上用 VPS Caddy 反代（`handle /api/v1/webrtc/realtime` → 上游 maas.aliyuncs.com，`header_up Authorization` 注入密钥）。**密钥仅存于服务器，页面零密钥**（优于初期"key 放 App"方案，属官方推荐的 AppServer 模式）。
+- **实现要点**：媒体门控（addTrack 后 enabled=false + replaceTrack(null)，session.created 后恢复）；Answer SDP 逐行 trim、`\r\n` 规范化；用户语音实时转写（qwen3-asr-flash-realtime）与 AI 回复流式字幕同屏；演示模式用 MediaStreamDestination 注入测试语音（无麦克风环境可验证）。
+- **验证结果**（本地 127.0.0.1 与线上 www.jxonline.top 双环境）：WebRTC 连通、会话就绪、演示语音触发 VAD 分段转写、**AI 真实语音回复两轮**（"That sounds great! I'd love to chat with you..."），插话打断链路生效。Caddy 修改均经 validate + 备份 + 回滚机制。
+- **代码位置**：`site/lab/realtime.html`（单文件，含演示模式）+ `test_input.wav`；git 已提交推送（9039750 / a0af12c）。VPS 新增路由见 `/etc/caddy/sites/www.jxonline.top.conf`（含 4 份 .bak 备份）。
 
 ## 七、风险与注意事项
 
@@ -129,6 +137,6 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 
 ---
 
-*文档：AI陪练方案.md v2.1 · 2026-10-19*
+*文档：AI陪练方案.md v2.2 · 2026-10-19*
 
 > AI生成
