@@ -1,7 +1,7 @@
 ﻿# 英语小伙伴「AI 陪练」实时语音对话功能方案
 
 > 基于 2026-10-19 实测（MiniMax 订阅 Key + 各厂商官网调研 + 阿里 Realtime P0 实测）整理
-> 状态：方案稿 v2.8（P2.4 完成：老师名字跟随音色联动）
+> 状态：方案稿 v2.9（接口访问码门禁上线：仅授权用户可调用 AI 陪练接口）
 
 ---
 
@@ -181,10 +181,19 @@ Qwen3.8-Omni-Flash-Realtime 服务端
   3. 长期原生 App 化时（播放器/发音评测下沉），可引入 Android AAR 迁移 AOQ，获得标准鉴权 + QUIC/Relay 弱网优势；
   4. **小伙伴办公（Electron）可直接 `npm install aoq-electron-sdk`**——未来办公助手加实时语音的开箱即用路线。
 
+### 接口访问码门禁（2026-10-19 深夜，安全加固，已上线）
+
+- **目标**：`https://www.jxonline.top/api/v1/webrtc/realtime` 原为 Caddy 裸代理（“知 URL 即可用”，存在被盗刷风险），改造为仅口令持有者可用。
+- **方案（单人口令模型）**：Caddy 在该 handle 块加 `basic_auth`（bcrypt 哈希存储，用户名 luo + 16 位强随机访问码）→ 无/错凭证请求直接 401，不转发到阿里（零费用风险）；鉴权通过后 Caddy 仍覆写 Authorization 为真实阿里 key。密钥继续仅存服务器，前端零密钥。
+- **前端**：① index.html：aiGate() 门禁流程（先访问码→再麦克风首用→建会话）；首用弹白色「🔐 输入访问码」卡片（存 xb_aiCode），SDP 请求带 `Authorization: Basic`，遇 401 自动清码重弹应用内输入框。② lab 原型页：startSession 前同源弹码（共用 xb_aiCode 存储）。
+- **验证**（VPS curl + Playwright 双侧）：主站/lab 页 200；无凭证 401；错码 401；对码+垃圾 SDP 400（过门禁、达阿里被拒，符合预期）；带显式凭证的 401 不触发浏览器原生弹窗（JS 正常接管）。Caddy 走备份→validate→restart→验证紀律，失败自动回滚。备份：/etc/caddy/sites/www.jxonline.top.conf.bak-codegate-20261019-233542。
+- **已知边界**：①旧版页面（部署前加载的）调用接口会弹浏览器原生 Sign in 框（无凭证 401 导致）——取消+刷新即恢复；②访问码为单人口令，未来面向多用户发行时需升级账号体系（每人一码/限流/额度）；③换码 = 重跑脚本改 Caddy 一行 + restart，客户端输新码即可。
+- git：3475e16。
+
 ## 七、风险与注意事项
 
 - **计费口径**：各家音频 token 换算不同，上线前用真实录音实测每分钟成本（阿里有 100 万 token 免费额度可先测）。
-- **Key 安全**：key 放 App 内有泄露风险，正式分发建议服务端中转（初期已确认可放）。
+- **Key 安全**：✅ 已解决双层防护——阿里真 key 仅存 VPS Caddy 配置；接口层已加访问码门禁（basic_auth），未授权请求 401 拒之门外，不产生费用。
 - **地域要求**：阿里 Realtime 需北京/新加坡地域 API Key + 业务空间 ID，WebSocket 地址须绑定业务空间。
 - **限流**：阿里 60 RPM / 200 万 TPM，个人陪练场景足够。
 - **豆包单价高**：约阿里 7~13 倍，仅按需启用；火山方舟接入需 endpoint 配置。
@@ -193,6 +202,6 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 
 ---
 
-*文档：AI陪练方案.md v2.8 · 2026-10-19*
+*文档：AI陪练方案.md v2.9 · 2026-10-19*
 
 > AI生成
