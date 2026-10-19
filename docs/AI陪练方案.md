@@ -1,7 +1,7 @@
 ﻿# 英语小伙伴「AI 陪练」实时语音对话功能方案
 
 > 基于 2026-10-19 实测（MiniMax 订阅 Key + 各厂商官网调研 + 阿里 Realtime P0 实测）整理
-> 状态：方案稿 v2.3（P2 已完成：悬浮按钮+对话浮层已集成进 App 并上线）
+> 状态：方案稿 v2.7（P2.3 完成 + AOQ 鉴权研究完成）
 
 ---
 
@@ -162,6 +162,17 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 - **处理**：整体删除 ailive 提示条（HTML/CSS/aiLive 函数及全部调用点，grep 清零）；状态反馈统一到底部状态行——用户停止说话后短暂显示「🧠 思考中…」，其余沿用「聆听中/老师说话中」；聊天区可视高度相应增加。
 - **验证**：本地+线上回归——完整对话、自动打断、状态切换正常，布局无重叠（getBoundingClientRect 校验 + 截图确认）；git：f5b250f。
 
+### AOQ 协议 Token 鉴权研究（2026-10-19 晚，官方文档 + 实测）
+
+- **机制**：服务端代理鉴权（AppServer 模式）。AppServer 携 API Key 调 `POST /api/v1/webrtc/realtime?model=xxx`（Header `x-dashscope-rtc-transport: moq`，body 可传 `clientIp` 就近分配），网关返回**一次性连接包**：`sid`（会话ID）、`aoqTokenForClient`（32位客户端令牌）、`clientRelayEndpoints`（Relay中继 IP:8443）、`clientRelayCertFingerprint`（证书指纹）、`sidExpiresInSecs`（默认 7200 秒）。客户端将 token/sid/relayEndpoints/certFingerprint 填入 AOQ SDK `engine.connect()` 直连 Relay；建连后传输不再鉴权；**API Key 全程不出服务端**，泄露的 Token 也只有 2 小时单会话生命周期。
+- **实测**（2026-10-19，用户 key）：HTTP 200 一步成功，返回结构完整（2 个北京 Relay 节点 47.95.245.226 / 47.100.207.43:8443）。
+- **SDK 平台（v1.3.0）**：Android(AAR+Opus插件)/iOS/鸿蒙/Windows/macOS/Linux/`aoq-electron-sdk`(npm)；**无浏览器/WebView H5 SDK**（MoQ 浏览器不支持）。
+- **对本项目结论**：
+  1. 英语小伙伴为 WebView H5 → **AOQ 当前用不上**，维持 WebRTC+Caddy 反代（"key 不出服务端"已与 AOQ 等价）；
+  2. 与 AOQ 的真实差距在**用户级管控**：现在 Caddy 裸代理"知 URL 即可用"；AOQ 模式每次建连经自家 AppServer 下发 Token → 可前置登录/限流/额度。公开前可在 Caddy 前补一层自有鉴权等价实现，改动小；
+  3. 长期原生 App 化时（播放器/发音评测下沉），可引入 Android AAR 迁移 AOQ，获得标准鉴权 + QUIC/Relay 弱网优势；
+  4. **小伙伴办公（Electron）可直接 `npm install aoq-electron-sdk`**——未来办公助手加实时语音的开箱即用路线。
+
 ## 七、风险与注意事项
 
 - **计费口径**：各家音频 token 换算不同，上线前用真实录音实测每分钟成本（阿里有 100 万 token 免费额度可先测）。
@@ -174,6 +185,6 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 
 ---
 
-*文档：AI陪练方案.md v2.6 · 2026-10-19*
+*文档：AI陪练方案.md v2.7 · 2026-10-19*
 
 > AI生成
