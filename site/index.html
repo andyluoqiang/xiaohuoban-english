@@ -279,8 +279,6 @@ body.fs-big .article .mdh{font-size:19px}
 .aib.ai{align-self:flex-start;background:#fff;border:1px solid #d8e4f4;border-bottom-left-radius:5px;box-shadow:0 2px 8px rgba(15,30,51,.05)}
 .aib.errb{align-self:center;background:#fdecec;color:#b3261e;font-size:12px;border:1px solid #f6cfcb;border-radius:999px;padding:5px 15px;max-width:92%;text-align:center}
 .aihint{align-self:center;color:var(--muted);font-size:11.5px;text-align:center;padding:0 24px;line-height:1.7}
-.ailive{flex-shrink:0;padding:0 14px 6px}
-.ailive .lin{min-height:40px;background:#fff;border:1px solid #e0e9f5;border-radius:13px;padding:7px 13px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px}
 .aifoot{flex-shrink:0;background:#fff;border-top:1px solid var(--line);padding:8px 14px calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
 .aiwave{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:30px}
 .aiwave i{width:4.5px;background:var(--azure);border-radius:3px;height:4px;transition:height .08s;opacity:.85}
@@ -357,7 +355,6 @@ body.fs-big .article .mdh{font-size:19px}
       <button class="aix" onclick="aiClose()" aria-label="关闭">✕</button>
     </div>
     <div class="aibody" id="aiChat"><div class="aihint">建议佩戴耳机获得最佳对话体验。<br>开始后直接说英语，老师会自动回应；老师说话时你随时插话即可打断。</div></div>
-    <div class="ailive"><div class="lin" id="aiLive"><span>💬</span><span id="aiLiveTxt">准备中…</span></div></div>
     <div class="aifoot">
       <div class="aiwave" id="aiWave"></div>
       <div class="aistat" id="aiStat"><span class="bdot"></span><span id="aiStatTxt">连接中…</span></div>
@@ -1580,7 +1577,6 @@ function aiBubble(cls, txt){
   requestAnimationFrame(function(){ chat.scrollTop = chat.scrollHeight; });
   return d;
 }
-function aiLive(em, txt){ document.getElementById('aiLiveTxt').textContent = txt; }
 function aiStatus(txt, withDot){
   var st = document.getElementById('aiStat');
   document.getElementById('aiStatTxt').textContent = txt;
@@ -1623,17 +1619,17 @@ function aiOpen(){
   aiResetBtn();
   /* 首次进入：先弹授权提示框，用户同意后才调起系统授权（避免“找不到授权入口”） */
   if(!store.get('aiMicIntro', 0)){
-    aiDot(''); aiStatus('等待麦克风授权…', false); aiLive('🔒', '首次使用需先授权麦克风');
+    aiDot(''); aiStatus('等待麦克风授权…', false);
     document.getElementById('aiMicMask').classList.add('show');
     return;
   }
-  aiDot(''); aiStatus('连接中…', false); aiLive('💬', '正在开始会话…');
+  aiDot(''); aiStatus('连接中…', false);
   aiSession();
 }
 function aiMicAccept(){ /* 授权并开始 */
   store.set('aiMicIntro', 1);
   document.getElementById('aiMicMask').classList.remove('show');
-  aiDot(''); aiStatus('连接中…', false); aiLive('💬', '正在开始会话…');
+  aiDot(''); aiStatus('连接中…', false);
   aiSession();
 }
 function aiMicRefuse(){ /* 暂不使用 */
@@ -1665,7 +1661,7 @@ function aiRetry(){
   for(var i = errs.length - 1; i >= 0; i--) errs[i].remove();
   aiEndSession(); /* 清理残留资源（不关浮层） */
   aiResetBtn();
-  aiDot(''); aiStatus('连接中…', false); aiLive('💬', '正在开始会话…');
+  aiDot(''); aiStatus('连接中…', false);
   aiSession();
 }
 
@@ -1792,7 +1788,6 @@ function aiHandle(m){
     case 'session.updated':
       AI.connected = true;
       aiDot('on'); aiStatus('聆听中，请说英语', true);
-      aiLive('🎤', '说英语吧！老师会自动回应');
       aiResetBtn();
       break;
     case 'input_audio_buffer.speech_started':
@@ -1803,14 +1798,11 @@ function aiHandle(m){
         aiMuteRemote(true);
         AI.speaking = false;
         if(AI.aiB){ AI.aiB.textContent = (AI.aiText || '') + ' ✂（已打断）'; AI.aiB = null; }
-        aiLive('✋', '已接住你的插话，你说…');
-      }else{
-        aiLive('🎙️', '正在听你说…');
       }
       aiStatus('聆听中，请说英语', true);
       break;
     case 'input_audio_buffer.speech_stopped':
-      aiLive('🧠', '收到！思考中…');
+      aiStatus('🧠 思考中…', false);
       break;
     case 'conversation.item.input_audio_transcription.delta':
       var ut = (m.text || '') + (m.stash || '');
@@ -1841,7 +1833,7 @@ function aiHandle(m){
       break;
     case 'response.done':
       AI.speaking = false; AI.aiB = null;
-      aiStatus('聆听中，请说英语', true); aiLive('💬', '老师说完啦，该你咯～');
+      aiStatus('聆听中，请说英语', true);
       break;
     case 'response.cancelled':
       AI.speaking = false;
