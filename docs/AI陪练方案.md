@@ -134,6 +134,14 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 - **代码**：`index.html`（AI 模块，含 aiOpen/aiSession/aiHandle 状态机）+ `img/ai_fab.png`；git 提交 abcfc64。
 - **遗留（P3）**：音色/难度设置项、多轮上下文长度控制、响应过长的打断策略调优；豆包备选接入；后端密钥中转优化（当前 Caddy 承担）。
 
+### P2.1 麦克风授权修复（2026-10-19 晚，H5+原生双端）
+
+- **问题**：App 内点开 AI 陪练报"麦克风不可用"，用户找不到授权入口。根因：① 安卓壳 Manifest 缺 `RECORD_AUDIO`；② WebView `onPermissionRequest` 未实现——getUserMedia 的网页权限请求被静默拒绝，系统授权弹窗根本不出现。
+- **H5 修复（用户交互拍板）**：首次点开 AI 陪练弹**授权提示框**（"开启语音对话"卡片：麦克风采音说明 + 「授权并开始」/「暂不使用」），同意后才调起系统/浏览器授权；仅首次弹（localStorage `aiMicIntro`），拒绝则关浮层+toast 提示可随时重开。麦克风错误细分引导：NotAllowed → **App 版**"手机设置→应用管理→英语小伙伴→权限" / **浏览器版**"地址栏权限图标"；未插设备、被占用、其他错误各配对应文案；**错误态下「打断」按钮变「↻ 重试」**，一键清理残留重连（会话就绪自动恢复为打断按钮）。
+- **原生修复（englishbuddy v1.0.5 / versionCode 5）**：Manifest 新增 RECORD_AUDIO + MODIFY_AUDIO_SETTINGS；MainActivity 实现 `onPermissionRequest`——WebView 权限请求转为系统运行时权限弹窗（ActivityCompat），授权回调 grant/deny 给 WebView，拒绝时 Toast 指引到系统设置；`onPermissionRequestCanceled` 兜底。
+- **验证**：本地+线上（授权框首弹/再开直连/拒绝记忆/模拟 NotAllowedError 引导文案/重试恢复）全过；APK 构建成功（`android/app/build/outputs/apk/release/englishbuddy-1.0.5.apk`，约 3MB）。**App 需卸载旧版或直接安装覆盖 1.0.5 生效**（升级后 WebView 权限链路才可用）；网页版已即时生效。
+- git：b80dfbb。
+
 ## 七、风险与注意事项
 
 - **计费口径**：各家音频 token 换算不同，上线前用真实录音实测每分钟成本（阿里有 100 万 token 免费额度可先测）。
@@ -146,6 +154,6 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 
 ---
 
-*文档：AI陪练方案.md v2.3 · 2026-10-19*
+*文档：AI陪练方案.md v2.4 · 2026-10-19*
 
 > AI生成
