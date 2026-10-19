@@ -1,11 +1,13 @@
 package com.andyluoqin.englishbuddy;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -19,6 +21,7 @@ import android.view.WindowManager;
 import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.webkit.ConsoleMessage;
+import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -29,6 +32,8 @@ import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import java.util.Locale;
 
@@ -56,6 +61,10 @@ public class MainActivity extends AppCompatActivity {
     // 视频全屏（HTML5 video 全屏按钮 → onShowCustomView）
     private View customView = null;
     private WebChromeClient.CustomViewCallback customViewCallback = null;
+
+    // ★ AI陪练麦克风：WebView getUserMedia 授权通路
+    private PermissionRequest pendingWebPerm = null;
+    private static final int REQ_MIC = 7001;
 
     private final ServiceConnection conn = new ServiceConnection() {
         @Override
@@ -185,6 +194,33 @@ public class MainActivity extends AppCompatActivity {
                     android.util.Log.w("H5Console", cm.message() + " @" + cm.lineNumber());
                 }
                 return true;
+            }
+
+            /* ---------- WebView getUserMedia 授权（AI陪练麦克风） ----------
+               H5 调 getUserMedia 时 WebView 发起 PermissionRequest；
+               默认行为是静默拒绝，会让 H5 永远收到 NotAllowedError。
+               这里转为：检查/申请 RECORD_AUDIO → grant 给 WebView。 */
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        handleWebPermission(request);
+                    }
+                });
+            }
+
+            @Override
+            public void onPermissionRequestCanceled(PermissionRequest request) {
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (pendingWebPerm != null && pendingWebPerm.equals(request)) {
+                            pendingWebPerm = null;
+                        }
+                        try { request.deny(); } catch (Exception ignored) { }
+                    }
+                });
             }
 
             /* ---------- HTML5 video 全屏：横屏 + 沉浸式 ---------- */
@@ -481,6 +517,48 @@ public class MainActivity extends AppCompatActivity {
         if (!svcBound || svc == null) {
             bindService(i, conn, Context.BIND_AUTO_CREATE);
             svcBound = true;
+        }
+    }
+
+    /* ---------------- WebView 权限 → 系统运行时权限 ---------------- */
+
+    private void handleWebPermission(PermissionRequest request) {
+        boolean wantAudio = false;
+        for (String r : request.getResources()) {
+            if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)) wantAudio = true;
+        }
+        if (!wantAudio) {
+            try { request.deny(); } catch (Exception ignored) { }
+            return;
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED) {
+            try { request.grant(request.getResources()); } catch (Exception ignored) { }
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 23) {
+            pendingWebPerm = request;
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
+        } else {
+            try { request.deny(); } catch (Exception ignored) { }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQ_MIC) return;
+        if (pendingWebPerm == null) return;
+        boolean ok = grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        try {
+            if (ok) pendingWebPerm.grant(pendingWebPerm.getResources());
+            else pendingWebPerm.deny();
+        } catch (Exception ignored) { }
+        pendingWebPerm = null;
+        if (!ok) {
+            Toast.makeText(this, "未授予麦克风权限，AI陪练无法对话；可到 设置→应用→英语小伙伴→权限 开启", Toast.LENGTH_LONG).show();
         }
     }
 

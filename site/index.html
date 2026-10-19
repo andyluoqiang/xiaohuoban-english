@@ -292,6 +292,21 @@ body.fs-big .article .mdh{font-size:19px}
 .aibtns button{flex:1;border:none;border-radius:15px;padding:13px 0;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;transition:.15s}
 .aiinterrupt{background:#fff1f0;color:#d84a26;border:1.5px solid #ffd7cd !important;flex:0 0 108px !important}
 .aiinterrupt:disabled{opacity:.4}
+.aiinterrupt.retry{background:var(--sky);color:var(--azure-d);border:1.5px solid #c7dcf8 !important}
+
+/* 麦克风授权提示框（首次进入） */
+#aiMicMask{position:absolute;inset:0;background:rgba(8,18,36,.55);z-index:5;display:none;align-items:center;justify-content:center;padding:28px}
+#aiMicMask.show{display:flex}
+#aiMicDlg{width:100%;max-width:320px;background:#fff;border-radius:18px;padding:22px 20px 18px;box-shadow:0 18px 48px rgba(8,18,36,.35);animation:aipop .22s ease}
+#aiMicDlg .micico{width:58px;height:58px;margin:-40px auto 10px;border-radius:50%;background:linear-gradient(135deg,#0b3d91,#1a5fb4);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 0 0 5px #fff,0 8px 18px rgba(11,61,145,.35)}
+#aiMicDlg h3{text-align:center;font-size:16.5px;color:var(--ink);margin-bottom:6px}
+#aiMicDlg .micdesc{font-size:12.5px;color:var(--muted);line-height:1.75;text-align:center;margin-bottom:4px}
+#aiMicDlg .micdesc b{color:var(--azure-d)}
+#aiMicDlg .micnote{font-size:10.5px;color:#9aa5b8;text-align:center;margin-top:10px;line-height:1.6}
+#aiMicDlg .mibtns{display:flex;gap:10px;margin-top:16px}
+#aiMicDlg .mibtns button{flex:1;border:none;border-radius:14px;padding:12px 0;font-size:14.5px;font-weight:800;cursor:pointer;font-family:inherit}
+#aiMicOk{background:linear-gradient(135deg,#0b3d91,#1a5fb4);color:#fff;box-shadow:0 5px 14px rgba(11,61,145,.3)}
+#aiMicNo{background:#eef2f7;color:var(--muted)}
 .aiclose{background:linear-gradient(135deg,#0b3d91,#1a5fb4);color:#fff;box-shadow:0 6px 16px rgba(11,61,145,.35)}
 </style>
 </head>
@@ -325,6 +340,19 @@ body.fs-big .article .mdh{font-size:19px}
       <div class="aibtns">
         <button class="aiinterrupt" id="aiInterruptBtn" onclick="aiInterrupt()" disabled>✋ 打断</button>
         <button class="aiclose" onclick="aiClose()">结束对话</button>
+      </div>
+    </div>
+    <!-- 首次进入：麦克风授权提示框 -->
+    <div id="aiMicMask">
+      <div id="aiMicDlg">
+        <div class="micico">🎤</div>
+        <h3>开启语音对话</h3>
+        <div class="micdesc">AI 陪练需要使用<b>麦克风</b>收音<br>进行实时英语对话（可随时打断）</div>
+        <div class="mibtns">
+          <button id="aiMicNo" onclick="aiMicRefuse()">暂不使用</button>
+          <button id="aiMicOk" onclick="aiMicAccept()">授权并开始</button>
+        </div>
+        <div class="micnote">授权后系统可能再次弹窗确认，请选择「允许」</div>
       </div>
     </div>
   </div>
@@ -1433,7 +1461,7 @@ window.nativeBack = function(){
 var AI = {
   open:false, pc:null, dc:null, micStream:null, micTrack:null, audioSender:null,
   remoteAudio:null, connected:false, speaking:false, gating:true,
-  ac:null, analyser:null, raf:0, aiText:'', aiB:null, userB:null, starting:false
+  ac:null, analyser:null, raf:0, aiText:'', aiB:null, userB:null, starting:false, retryMode:false
 };
 AI.MODEL = 'qwen3.8-omni-flash-realtime';
 AI.SDP_URL = '/api/v1/webrtc/realtime?model=' + AI.MODEL;
@@ -1462,11 +1490,23 @@ function aiMeter(v){
     bars[i].style.height = Math.min(30, h) + 'px';
   }
 }
-function aiErr(msg){
+function aiErr(msg, retry){
   aiBubble('errb', '⚠ ' + msg);
   toast('AI陪练：' + msg);
   aiDot('err');
-  aiStatus('连接出错，请结束后重试', false);
+  var b = document.getElementById('aiInterruptBtn');
+  if(retry){
+    AI.retryMode = true;
+    b.innerHTML = '↻ 重试'; b.classList.add('retry'); b.disabled = false;
+    aiStatus('出错了，点「重试」再试一次', false);
+  }else{
+    aiStatus('连接出错，请结束后重试', false);
+  }
+}
+function aiResetBtn(){
+  var b = document.getElementById('aiInterruptBtn');
+  b.innerHTML = '✋ 打断'; b.classList.remove('retry'); b.disabled = true;
+  AI.retryMode = false;
 }
 function aiSend(obj){ if(AI.dc && AI.dc.readyState === 'open'){ try{ AI.dc.send(JSON.stringify(obj)); }catch(e){} } }
 
@@ -1478,30 +1518,75 @@ function aiOpen(){
   var chat = document.getElementById('aiChat');
   chat.innerHTML = '<div class="aihint">建议佩戴耳机获得最佳对话体验。<br>开始后直接说英语，老师会自动回应；老师说话时你随时插话即可打断。</div>';
   document.getElementById('aiPanel').classList.add('show');
+  aiResetBtn();
+  /* 首次进入：先弹授权提示框，用户同意后才调起系统授权（避免“找不到授权入口”） */
+  if(!store.get('aiMicIntro', 0)){
+    aiDot(''); aiStatus('等待麦克风授权…', false); aiLive('🔒', '首次使用需先授权麦克风');
+    document.getElementById('aiMicMask').classList.add('show');
+    return;
+  }
   aiDot(''); aiStatus('连接中…', false); aiLive('💬', '正在开始会话…');
-  document.getElementById('aiInterruptBtn').disabled = true;
   aiSession();
+}
+function aiMicAccept(){ /* 授权并开始 */
+  store.set('aiMicIntro', 1);
+  document.getElementById('aiMicMask').classList.remove('show');
+  aiDot(''); aiStatus('连接中…', false); aiLive('💬', '正在开始会话…');
+  aiSession();
+}
+function aiMicRefuse(){ /* 暂不使用 */
+  store.set('aiMicIntro', 1);
+  document.getElementById('aiMicMask').classList.remove('show');
+  aiClose();
+  toast('可随时点右下角「AI陪练」重新开启');
 }
 function aiClose(){
   if(!AI.open) return;
+  try{ document.getElementById('aiMicMask').classList.remove('show'); }catch(e){}
   aiEndSession();
   AI.open = false;
   document.getElementById('aiPanel').classList.remove('show');
 }
 function aiInterrupt(){
+  if(AI.retryMode){ aiRetry(); return; } /* 错误态：按钮作为重试入口 */
   if(!AI.connected) return;
   aiSend({type:'response.cancel'});
   if(AI.remoteAudio){ try{ AI.remoteAudio.pause(); AI.remoteAudio.play(); }catch(e){} }
   AI.speaking = false; aiStatus('聆听中，请说英语', true); aiLive('✋', '已打断，你说…');
 }
+function aiRetry(){
+  if(!AI.open || AI.starting) return;
+  var chat = document.getElementById('aiChat');
+  var errs = chat.querySelectorAll('.aib.errb');
+  for(var i = errs.length - 1; i >= 0; i--) errs[i].remove();
+  aiEndSession(); /* 清理残留资源（不关浮层） */
+  aiResetBtn();
+  aiDot(''); aiStatus('连接中…', false); aiLive('💬', '正在开始会话…');
+  aiSession();
+}
 
 async function aiSession(){
+  if(!AI.open) return;
   AI.starting = true;
   try{
     AI.micStream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
   }catch(e){
     AI.starting = false;
-    aiErr('麦克风不可用（' + (e && e.name ? e.name : '未知') + '），请授权麦克风后重试');
+    var n = (e && e.name) ? e.name : '';
+    var msg, guide = '';
+    if(n === 'NotAllowedError' || n === 'PermissionDeniedError'){
+      msg = '麦克风权限被拒绝';
+      guide = NativePlayer
+        ? '请到 手机设置 → 应用管理 → 英语小伙伴 → 权限，开启「麦克风」后点重试'
+        : '请点浏览器地址栏的 🔒 / ⓘ 权限图标，允许「麦克风」后点重试';
+    }else if(n === 'NotFoundError' || n === 'DevicesNotFoundError'){
+      msg = '未检测到麦克风设备'; guide = '请确认手机/电脑已接入麦克风';
+    }else if(n === 'NotReadableError' || n === 'TrackStartError'){
+      msg = '麦克风被其他应用占用'; guide = '请关闭正在使用麦克风的软件（如微信通话、录音）后点重试';
+    }else{
+      msg = '麦克风不可用' + (n ? '（' + n + '）' : ''); guide = '请检查设备后点重试';
+    }
+    aiErr(msg + (guide ? '\n' + guide : ''), true);
     return;
   }
   var pc = new RTCPeerConnection({iceServers:[]});
@@ -1519,11 +1604,11 @@ async function aiSession(){
       if(AI.open && AI.connected && !connTimer){
         connTimer = setTimeout(function(){
           connTimer = 0;
-          if(AI.pc && AI.pc.connectionState !== 'connected' && AI.open){ aiErr('网络波动，请结束后重试'); }
+          if(AI.pc && AI.pc.connectionState !== 'connected' && AI.open){ aiErr('网络波动，可以点重试', true); }
         }, 8000);
       }
     }else if(pc.connectionState === 'failed' || pc.connectionState === 'closed'){
-      if(AI.open && !AI.connErr){ AI.connErr = true; aiErr('通话连接已断开'); AI.connected = false; document.getElementById('aiInterruptBtn').disabled = true; }
+      if(AI.open && !AI.connErr){ AI.connErr = true; aiErr('通话连接已断开', true); AI.connected = false; }
     }
   };
   pc.ontrack = function(e){
@@ -1580,7 +1665,7 @@ async function aiSession(){
     await pc.setRemoteDescription({type:'answer', sdp:fixed});
   }catch(e){
     AI.starting = false;
-    if(AI.open) aiErr('连接失败：' + (e && e.message ? e.message : '网络异常'));
+    if(AI.open) aiErr('连接失败：' + (e && e.message ? e.message : '网络异常'), true);
     aiEndSession();
     return;
   }
@@ -1609,7 +1694,7 @@ function aiHandle(m){
       AI.connected = true;
       aiDot('on'); aiStatus('聆听中，请说英语', true);
       aiLive('🎤', '说英语吧！老师会自动回应');
-      document.getElementById('aiInterruptBtn').disabled = false;
+      aiResetBtn(); document.getElementById('aiInterruptBtn').disabled = false;
       break;
     case 'input_audio_buffer.speech_started':
       AI.userB = null;
@@ -1652,7 +1737,7 @@ function aiHandle(m){
       break;
     case 'error':
       var em = (m.error && m.error.message) ? m.error.message : '服务返回错误';
-      aiErr(em);
+      aiErr(em, true);
       break;
   }
 }
