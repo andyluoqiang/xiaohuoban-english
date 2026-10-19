@@ -328,6 +328,22 @@ body.fs-big .article .mdh{font-size:19px}
 #aiMicDlg .mibtns button{flex:1;border:none;border-radius:14px;padding:12px 0;font-size:14.5px;font-weight:800;cursor:pointer;font-family:inherit}
 #aiMicOk{background:linear-gradient(135deg,#0b3d91,#1a5fb4);color:#fff;box-shadow:0 5px 14px rgba(11,61,145,.3)}
 #aiMicNo{background:#eef2f7;color:var(--muted)}
+/* 访问码输入框（首次使用/校验不通过时重弹） */
+#aiCodeMask{position:absolute;inset:0;background:rgba(8,18,36,.55);z-index:6;display:none;align-items:center;justify-content:center;padding:28px}
+#aiCodeMask.show{display:flex}
+#aiCodeDlg{width:100%;max-width:320px;background:#fff;border-radius:18px;padding:22px 20px 18px;box-shadow:0 18px 48px rgba(8,18,36,.35);animation:aipop .22s ease}
+#aiCodeDlg .micico{width:58px;height:58px;margin:-40px auto 10px;border-radius:50%;background:linear-gradient(135deg,#0b3d91,#1a5fb4);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 0 0 5px #fff,0 8px 18px rgba(11,61,145,.35)}
+#aiCodeDlg h3{text-align:center;font-size:16.5px;color:var(--ink);margin-bottom:6px}
+#aiCodeDlg .micdesc{font-size:12.5px;color:var(--muted);line-height:1.75;text-align:center;margin-bottom:4px}
+#aiCodeDlg .micdesc b{color:var(--azure-d)}
+#aiCodeDlg .micnote{font-size:10.5px;color:#9aa5b8;text-align:center;margin-top:10px;line-height:1.6}
+#aiCodeDlg .mibtns{display:flex;gap:10px;margin-top:14px}
+#aiCodeDlg .mibtns button{flex:1;border:none;border-radius:14px;padding:12px 0;font-size:14.5px;font-weight:800;cursor:pointer;font-family:inherit}
+#aiCodeDlg #aiCodeOk{background:linear-gradient(135deg,#0b3d91,#1a5fb4);color:#fff;box-shadow:0 5px 14px rgba(11,61,145,.3)}
+#aiCodeDlg #aiCodeNo{background:#eef2f7;color:var(--muted)}
+#aiCodeDlg .codein{margin-top:10px}
+#aiCodeDlg .codein input{width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:13px;padding:11px 13px;font-size:15px;letter-spacing:1.5px;font-family:inherit;color:var(--ink);outline:none;text-align:center;background:#fff}
+#aiCodeDlg .codein input:focus{border-color:var(--azure)}
 .aiclose{background:linear-gradient(135deg,#0b3d91,#1a5fb4);color:#fff;box-shadow:0 6px 16px rgba(11,61,145,.35)}
 </style>
 </head>
@@ -369,6 +385,20 @@ body.fs-big .article .mdh{font-size:19px}
         <h3>🎙 选择老师音色</h3>
         <div class="vsub">共 10 款老师音色（均支持英文对话）· 切换后立即生效</div>
         <div id="aiVoList"></div>
+      </div>
+    </div>
+    <!-- 访问码输入（首次使用 / 校验不通过时弹出） -->
+    <div id="aiCodeMask">
+      <div id="aiCodeDlg">
+        <div class="micico">🔐</div>
+        <h3>输入访问码</h3>
+        <div class="micdesc">AI 陪练为<b>私人服务</b><br>请输入访问码验证后开始对话</div>
+        <div class="codein"><input id="aiCodeIn" type="password" maxlength="32" autocomplete="off" placeholder="字母 / 数字" onkeydown="if(event.key==='Enter')aiCodeSubmit()"></div>
+        <div class="mibtns">
+          <button id="aiCodeNo" onclick="aiCodeCancel()">先不用</button>
+          <button id="aiCodeOk" onclick="aiCodeSubmit()">验证并开始</button>
+        </div>
+        <div class="micnote">验证通过后本设备将自动记住，无需再次输入</div>
       </div>
     </div>
     <!-- 首次进入：麦克风授权提示框 -->
@@ -1494,6 +1524,13 @@ var AI = {
 };
 AI.MODEL = 'qwen3.8-omni-flash-realtime';
 AI.SDP_URL = '/api/v1/webrtc/realtime?model=' + AI.MODEL;
+/* 访问码门禁：Basic 凭证随 SDP 交换请求发送，Caddy 校验后覆写为真实密钥 */
+AI.AUTH_USER = 'luo';
+function aiAuthHeader(){
+  var c = store.get('aiCode', '');
+  if(!c) return '';
+  try{ return 'Basic ' + btoa(AI.AUTH_USER + ':' + c); }catch(e){ return ''; }
+}
 /* 人设按音色动态生成：老师名字跟随所选音色（不写死名字，模型不会再自称 Alex） */
 AI.INST_TPL = 'You are {NAME}, a friendly American English teacher in a live voice call. {NAME} is the name you go by — always use it when asked your name, never invent another. Keep replies short and natural (1-3 spoken sentences), encourage the student, and gently correct grammar mistakes by rephrasing. Avoid long explanations unless asked.';
 function aiFindVoice(id){
@@ -1627,6 +1664,16 @@ function aiOpen(){
   chat.innerHTML = '<div class="aihint">建议佩戴耳机获得最佳对话体验。<br>开始后直接说英语，老师会自动回应；老师说话时你随时插话即可打断。</div>';
   document.getElementById('aiPanel').classList.add('show');
   aiResetBtn();
+  aiGate();
+}
+function aiGate(){ /* 门禁：先访问码 → 再麦克风首用提示 → 建会话 */
+  if(!store.get('aiCode', '')){
+    aiDot(''); aiStatus('等待输入访问码…', false);
+    var ci = document.getElementById('aiCodeIn'); if(ci) ci.value = '';
+    document.getElementById('aiCodeMask').classList.add('show');
+    setTimeout(function(){ if(ci && document.getElementById('aiCodeMask').classList.contains('show')) ci.focus(); }, 80);
+    return;
+  }
   /* 首次进入：先弹授权提示框，用户同意后才调起系统授权（避免“找不到授权入口”） */
   if(!store.get('aiMicIntro', 0)){
     aiDot(''); aiStatus('等待麦克风授权…', false);
@@ -1635,6 +1682,19 @@ function aiOpen(){
   }
   aiDot(''); aiStatus('连接中…', false);
   aiSession();
+}
+function aiCodeSubmit(){ /* 验证并开始：保存访问码后继续门禁流程（真伪由服务端校验，错误返回 401 重弹） */
+  var ci = document.getElementById('aiCodeIn');
+  var v = ci ? String(ci.value || '').trim().replace(/[^\x21-\x7e]/g, '') : '';
+  if(!v){ toast('请输入访问码（字母/数字）'); if(ci) ci.focus(); return; }
+  store.set('aiCode', v);
+  document.getElementById('aiCodeMask').classList.remove('show');
+  aiGate();
+}
+function aiCodeCancel(){ /* 先不用：关闭浮层，可随时重开 */
+  document.getElementById('aiCodeMask').classList.remove('show');
+  aiClose();
+  toast('输入访问码后即可开始 AI 陪练');
 }
 function aiMicAccept(){ /* 授权并开始 */
   store.set('aiMicIntro', 1);
@@ -1651,6 +1711,7 @@ function aiMicRefuse(){ /* 暂不使用 */
 function aiClose(){
   if(!AI.open) return;
   try{ document.getElementById('aiMicMask').classList.remove('show'); }catch(e){}
+  try{ document.getElementById('aiCodeMask').classList.remove('show'); }catch(e){}
   aiEndSession();
   AI.open = false;
   document.getElementById('aiPanel').classList.remove('show');
@@ -1671,8 +1732,7 @@ function aiRetry(){
   for(var i = errs.length - 1; i >= 0; i--) errs[i].remove();
   aiEndSession(); /* 清理残留资源（不关浮层） */
   aiResetBtn();
-  aiDot(''); aiStatus('连接中…', false);
-  aiSession();
+  aiGate();
 }
 
 async function aiSession(){
@@ -1767,7 +1827,20 @@ async function aiSession(){
       setTimeout(res, 2500);
     });
     if(!AI.pc){ return; } /* 已被关闭 */
-    var r = await fetch(AI.SDP_URL, {method:'POST', headers:{'Content-Type':'application/sdp'}, body:pc.localDescription.sdp});
+    var r = await fetch(AI.SDP_URL, {method:'POST', headers:{'Content-Type':'application/sdp', Authorization: aiAuthHeader()}, body:pc.localDescription.sdp});
+    if(r.status === 401){ /* 访问码错误：清除失效码，重新进入门禁 */
+      AI.starting = false;
+      store.set('aiCode', '');
+      aiEndSession();
+      if(AI.open){
+        aiDot(''); aiStatus('访问码不正确', false);
+        aiBubble('errb', '⚠ 访问码不正确，请重新输入');
+        var ci = document.getElementById('aiCodeIn'); if(ci) ci.value = '';
+        document.getElementById('aiCodeMask').classList.add('show');
+        setTimeout(function(){ if(ci) ci.focus(); }, 80);
+      }
+      return;
+    }
     if(!r.ok){ var t = await r.text(); throw new Error('服务返回 ' + r.status); }
     var ans = await r.text();
     if(!AI.pc){ return; }

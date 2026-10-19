@@ -40,6 +40,17 @@ footer{padding:10px 14px calc(14px + env(safe-area-inset-bottom));background:var
 #btnDemo{background:var(--sky);color:var(--azure);font-size:13px;padding:10px 0;flex:0 0 92px}
 #btnStop{background:#fff1f0;color:#d84a26;border:1px solid #ffd7cd;display:none;flex:0 0 96px}
 #err{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#2f2f2f;color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;display:none;max-width:88vw;z-index:9}
+#codeMask{position:fixed;inset:0;background:rgba(10,30,25,.55);z-index:8;display:none;align-items:center;justify-content:center;padding:26px}
+#codeMask.show{display:flex}
+#codeDlg{width:100%;max-width:300px;background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 18px 40px rgba(15,60,45,.3);animation:pop .2s ease}
+#codeDlg h3{margin:0 0 6px;font-size:15.5px;text-align:center}
+#codeDlg p{margin:0 0 10px;font-size:12px;color:var(--sub);text-align:center;line-height:1.7}
+#codeDlg input{width:100%;border:1.5px solid #cfe9e0;border-radius:12px;padding:11px 12px;font-size:14px;letter-spacing:1.5px;text-align:center;outline:none;box-sizing:border-box}
+#codeDlg input:focus{border-color:var(--mint)}
+#codeDlg .cs{display:flex;gap:8px;margin-top:12px}
+#codeDlg button{flex:1;border:none;border-radius:12px;padding:11px 0;font-size:14px;font-weight:700;cursor:pointer}
+#codeDlg .ok{background:linear-gradient(135deg,var(--mint),var(--mint-d));color:#fff}
+#codeDlg .no{background:#eef5f2;color:var(--sub)}
 </style>
 </head>
 <body>
@@ -67,6 +78,17 @@ footer{padding:10px 14px calc(14px + env(safe-area-inset-bottom));background:var
   </div>
 </footer>
 <div id="err"></div>
+<div id="codeMask" onclick="if(event.target===this)this.classList.remove('show')">
+  <div id="codeDlg">
+    <h3>🔐 输入访问码</h3>
+    <p>AI 陪练接口已启用访问码验证<br>请输入后重新点「开始对话」</p>
+    <input id="codeIn" type="password" maxlength="32" autocomplete="off" placeholder="字母 / 数字">
+    <div class="cs">
+      <button class="no" onclick="document.getElementById('codeMask').classList.remove('show')">取消</button>
+      <button class="ok" onclick="codeSubmit()">保存</button>
+    </div>
+  </div>
+</div>
 <script>
 'use strict';
 /* ============ 配置 ============ */
@@ -74,6 +96,13 @@ const MODEL='qwen3.8-omni-flash-realtime';
 const SDP_PROXY=(location.protocol==='https:'?'https:':'http:')+'//'+location.host+'/api/v1/webrtc/realtime?model='+MODEL;
 const INSTRUCTIONS='You are a friendly American English teacher in a live voice call. Keep replies short and natural (1-3 spoken sentences), encourage the student, and gently correct grammar mistakes by rephrasing. Avoid long explanations unless asked.';
 const $=id=>document.getElementById(id);
+
+/* ============ 访问码门禁（与正式页共用 xb_aiCode 存储） ============ */
+const AUTH_USER='luo';
+function rtCode(){try{return JSON.parse(localStorage.getItem('xb_aiCode')||'""')||''}catch(e){return ''}}
+function rtAuth(){const c=rtCode();try{return c?'Basic '+btoa(AUTH_USER+':'+c):''}catch(e){return ''}}
+function askCode(wrong){$('codeMask').classList.add('show');if(wrong)bubble('sys','⚠️ 访问码不正确，请重新输入');setTimeout(()=>$('codeIn').focus(),60)}
+function codeSubmit(){const v=($('codeIn').value||'').trim().replace(/[^\x21-\x7e]/g,'');if(!v){toast('请输入访问码');return}localStorage.setItem('xb_aiCode',JSON.stringify(v));$('codeMask').classList.remove('show');toast('访问码已保存，点「开始对话」继续')}
 
 /* ============ 状态 ============ */
 let pc=null, dc=null, micStream=null, remoteAudio=null;
@@ -108,6 +137,7 @@ function startMeter(stream){
 
 /* ============ WebRTC 主流程 ============ */
 async function startSession(){
+  if(!rtCode()){askCode(false);return}
   try{
     micStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
   }catch(e){toast('无法获取麦克风：'+e.name);bubble('sys','⚠️ 麦克风不可用（'+e.name+'），WebRTC 模式需要麦克风');return}
@@ -152,7 +182,8 @@ async function startSession(){
   /* SDP 经服务端代理换取 Answer（前端零密钥） */
   let ansSdp;
   try{
-    const r=await fetch(SDP_PROXY,{method:'POST',headers:{'Content-Type':'application/sdp'},body:offerSdp});
+    const r=await fetch(SDP_PROXY,{method:'POST',headers:{'Content-Type':'application/sdp',Authorization:rtAuth()},body:offerSdp});
+    if(r.status===401){localStorage.removeItem('xb_aiCode');askCode(true);endSession();return}
     if(!r.ok){const t=await r.text();throw new Error('HTTP '+r.status+' '+t.slice(0,120))}
     ansSdp=await r.text();
     window._dbg={offer:offerSdp,answer:ansSdp};
