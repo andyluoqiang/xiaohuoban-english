@@ -294,6 +294,29 @@ body.fs-big .article .mdh{font-size:19px}
 .aiinterrupt:disabled{opacity:.4}
 .aiinterrupt.retry{background:var(--sky);color:var(--azure-d);border:1.5px solid #c7dcf8 !important}
 
+/* 音色按钮 + 音色选择面板 */
+.aivoicebtn{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.18);border:none;color:#fff;font-family:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:13px;cursor:pointer;flex:0 0 auto}
+.aivoicebtn:active{background:rgba(255,255,255,.3)}
+.aivoicebtn b{font-weight:800;max-width:58px;overflow:hidden;white-space:nowrap}
+#aiVoiceMask{position:absolute;inset:0;background:rgba(8,18,36,.5);z-index:7;display:none;align-items:flex-end;justify-content:center}
+#aiVoiceMask.show{display:flex}
+.aiVoCard{width:100%;max-width:560px;background:#fff;border-radius:20px 20px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom));max-height:66%;overflow-y:auto;animation:vsheet .25s cubic-bezier(.25,.8,.3,1)}
+@keyframes vsheet{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.aiVoCard h3{font-size:15px;color:var(--ink);margin:2px 0 3px}
+.aiVoCard .vsub{font-size:11px;color:var(--muted);margin-bottom:4px}
+.aiVoCard .vgrp{font-size:11px;font-weight:800;color:var(--azure-d);background:var(--sky);display:inline-flex;border-radius:10px;padding:3px 11px;margin:12px 0 8px}
+.vitem{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1.5px solid var(--line);border-radius:13px;margin-bottom:8px;cursor:pointer;font-family:inherit;background:#fff;transition:.12s}
+.vitem:active{transform:scale(.98)}
+.vitem.on{border-color:var(--azure);background:var(--sky)}
+.vitem .vi{width:36px;height:36px;border-radius:50%;background:#eef3fa;display:flex;align-items:center;justify-content:center;font-size:17px;flex:0 0 auto}
+.vitem.on .vi{background:linear-gradient(135deg,#0b3d91,#1a5fb4)}
+.vitem .vt{flex:1;min-width:0}
+.vitem .vt b{display:block;font-size:13.5px;color:var(--ink)}
+.vitem .vt b i{font-style:normal;color:#9aa5b8;font-size:10px;font-weight:600;margin-left:6px}
+.vitem .vt span{font-size:10.5px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vitem .ck{flex:0 0 auto;font-size:14px;color:var(--azure);display:none;font-weight:900}
+.vitem.on .ck{display:block}
+
 /* 麦克风授权提示框（首次进入） */
 #aiMicMask{position:absolute;inset:0;background:rgba(8,18,36,.55);z-index:5;display:none;align-items:center;justify-content:center;padding:28px}
 #aiMicMask.show{display:flex}
@@ -329,6 +352,7 @@ body.fs-big .article .mdh{font-size:19px}
     <div class="aihead">
       <div class="aihlogo">🎤</div>
       <div class="aihttl"><b>AI 陪练</b><span>实时英语对话 · 插话即打断</span></div>
+      <button class="aivoicebtn" onclick="aiToggleVoices()" aria-label="选择音色"><span>🎙</span><b id="aiVoiceName">甜甜</b></button>
       <div class="aidot" id="aiDot"></div>
       <button class="aix" onclick="aiClose()" aria-label="关闭">✕</button>
     </div>
@@ -338,8 +362,16 @@ body.fs-big .article .mdh{font-size:19px}
       <div class="aiwave" id="aiWave"></div>
       <div class="aistat" id="aiStat"><span class="bdot"></span><span id="aiStatTxt">连接中…</span></div>
       <div class="aibtns">
-        <button class="aiinterrupt" id="aiInterruptBtn" onclick="aiInterrupt()" disabled>✋ 打断</button>
+        <button class="aiinterrupt retry" id="aiRetryBtn" onclick="aiRetry()" style="display:none">↻ 重试</button>
         <button class="aiclose" onclick="aiClose()">结束对话</button>
+      </div>
+    </div>
+    <!-- 音色选择面板 -->
+    <div id="aiVoiceMask" onclick="if(event.target===this)aiToggleVoices(false)">
+      <div class="aiVoCard">
+        <h3>🎙 选择老师音色</h3>
+        <div class="vsub">共 10 款老师音色（均支持英文对话）· 切换后立即生效</div>
+        <div id="aiVoList"></div>
       </div>
     </div>
     <!-- 首次进入：麦克风授权提示框 -->
@@ -1467,6 +1499,78 @@ AI.MODEL = 'qwen3.8-omni-flash-realtime';
 AI.SDP_URL = '/api/v1/webrtc/realtime?model=' + AI.MODEL;
 AI.INST = 'You are a friendly American English teacher in a live voice call. Keep replies short and natural (1-3 spoken sentences), encourage the student, and gently correct grammar mistakes by rephrasing. Avoid long explanations unless asked.';
 
+/* 音色清单（官方 qwen3.8-omni 系列均支持英文，5女+5男） */
+AI.VOICES = {
+  f: [
+    {id:'Tina', zh:'甜甜', desc:'默认音色 · 甜暖自然，说英语好听不做作'},
+    {id:'Jennifer', zh:'詹妮弗', desc:'品牌级美语女声 · 电影质感，发音标准'},
+    {id:'Mione', zh:'敏儿', desc:'英式知性 · 邻家姐姐，适合学英音'},
+    {id:'Serena', zh:'苏瑶', desc:'温柔亲切 · 语速舒缓，听得清楚'},
+    {id:'Mia', zh:'舒然', desc:'生活治愈系 · 柔和耐心'}
+  ],
+  m: [
+    {id:'Aiden', zh:'艾登', desc:'美式大男孩 · 活力标准，推荐练口语'},
+    {id:'Raymond', zh:'林川野', desc:'清亮年轻 · 日常口语感强'},
+    {id:'Evan', zh:'江晨', desc:'大学男生 · 轻松自然不拘束'},
+    {id:'Theo Calm', zh:'予安', desc:'沉稳疗愈 · 温和成熟'},
+    {id:'Ryan', zh:'甜茶', desc:'节奏鲜明 · 活泼戏感'}
+  ]
+};
+function aiVoiceCur(){ var v = store.get('aiVoice', ''); return v || 'Tina'; }
+function aiSessionCfg(){
+  var v = aiVoiceCur();
+  return {
+    modalities:['text','audio'], voice:v, instructions:AI.INST,
+    input_audio_format:'pcm', output_audio_format:'pcm', smooth_output:false,
+    input_audio_transcription:{model:'qwen3-asr-flash-realtime'},
+    turn_detection:{type:'semantic_vad', prefix_padding_ms:500, silence_duration_ms:900, threshold:0.1},
+    audio:{ output:{ voice:v } }
+  };
+}
+function vItemHtml(v, cur){
+  return '<div class="vitem'+(v.id===cur?' on':'')+'" onclick="aiPickVoice(\''+v.id+'\',\''+v.zh+'\')">'
+    + '<div class="vi">'+(v.id===cur?'🔊':'🎙')+'</div>'
+    + '<div class="vt"><b>'+v.zh+'<i>'+v.id+'</i></b><span>'+v.desc+'</span></div>'
+    + '<div class="ck">✔</div></div>';
+}
+function aiRenderVoices(){
+  var wrap = document.getElementById('aiVoList');
+  if(!wrap) return;
+  var cur = aiVoiceCur();
+  var h = '<div class="vgrp">♀ 女老师</div>';
+  AI.VOICES.f.forEach(function(v){ h += vItemHtml(v, cur); });
+  h += '<div class="vgrp">♂ 男老师</div>';
+  AI.VOICES.m.forEach(function(v){ h += vItemHtml(v, cur); });
+  wrap.innerHTML = h;
+}
+function aiToggleVoices(show){
+  var m = document.getElementById('aiVoiceMask');
+  if(!m) return;
+  var s = (show === undefined) ? !m.classList.contains('show') : show;
+  if(s){ aiRenderVoices(); m.classList.add('show'); }
+  else m.classList.remove('show');
+}
+function aiPickVoice(id, zh){
+  store.set('aiVoice', id);
+  var nb = document.getElementById('aiVoiceName'); if(nb) nb.textContent = zh;
+  aiRenderVoices();
+  aiToggleVoices(false);
+  if(AI.connected && AI.dc && AI.dc.readyState === 'open'){
+    /* 会话中切换：立即下发新音色，并让老师用新声音打个招呼 */
+    if(AI.speaking) aiSend({type:'response.cancel'});
+    aiSend({type:'session.update', session: aiSessionCfg()});
+    setTimeout(function(){
+      if(!AI.connected || !AI.open) return;
+      aiSend({type:'conversation.item.create', item:{type:'message', role:'user',
+        content:[{type:'input_text', text:'Hi! Please say hello to me in your new voice, just one short sentence.'}]}});
+      aiSend({type:'response.create'});
+    }, 450);
+    toast('已切换音色：' + zh);
+  }else{
+    toast('已选择音色：' + zh + '，开始对话后生效');
+  }
+}
+
 function aiBubble(cls, txt){
   var d = document.createElement('div');
   d.className = 'aib ' + cls; d.textContent = txt;
@@ -1494,18 +1598,16 @@ function aiErr(msg, retry){
   aiBubble('errb', '⚠ ' + msg);
   toast('AI陪练：' + msg);
   aiDot('err');
-  var b = document.getElementById('aiInterruptBtn');
   if(retry){
     AI.retryMode = true;
-    b.innerHTML = '↻ 重试'; b.classList.add('retry'); b.disabled = false;
+    document.getElementById('aiRetryBtn').style.display = 'block';
     aiStatus('出错了，点「重试」再试一次', false);
   }else{
     aiStatus('连接出错，请结束后重试', false);
   }
 }
 function aiResetBtn(){
-  var b = document.getElementById('aiInterruptBtn');
-  b.innerHTML = '✋ 打断'; b.classList.remove('retry'); b.disabled = true;
+  document.getElementById('aiRetryBtn').style.display = 'none';
   AI.retryMode = false;
 }
 function aiSend(obj){ if(AI.dc && AI.dc.readyState === 'open'){ try{ AI.dc.send(JSON.stringify(obj)); }catch(e){} } }
@@ -1547,12 +1649,14 @@ function aiClose(){
   AI.open = false;
   document.getElementById('aiPanel').classList.remove('show');
 }
-function aiInterrupt(){
-  if(AI.retryMode){ aiRetry(); return; } /* 错误态：按钮作为重试入口 */
-  if(!AI.connected) return;
-  aiSend({type:'response.cancel'});
-  if(AI.remoteAudio){ try{ AI.remoteAudio.pause(); AI.remoteAudio.play(); }catch(e){} }
-  AI.speaking = false; aiStatus('聆听中，请说英语', true); aiLive('✋', '已打断，你说…');
+function aiMuteRemote(muted){ /* 打断时立刻静音远端轨道，避免尾巴继续播 */
+  try{
+    if(AI.remoteAudio && AI.remoteAudio.srcObject){
+      var t = AI.remoteAudio.srcObject.getAudioTracks()[0];
+      if(t) t.enabled = !muted;
+    }
+  }catch(e){}
+  AI.remoteMuted = muted;
 }
 function aiRetry(){
   if(!AI.open || AI.starting) return;
@@ -1683,23 +1787,27 @@ function aiHandle(m){
     case 'session.created':
       AI.gating = false; AI.micTrack.enabled = true;
       try{ AI.audioSender.replaceTrack(AI.micTrack); }catch(e){}
-      aiSend({type:'session.update', session:{
-        modalities:['text','audio'], voice:'Tina', instructions:AI.INST,
-        input_audio_format:'pcm', output_audio_format:'pcm', smooth_output:false,
-        input_audio_transcription:{model:'qwen3-asr-flash-realtime'},
-        turn_detection:{type:'semantic_vad', prefix_padding_ms:500, silence_duration_ms:900, threshold:0.1}
-      }});
+      aiSend({type:'session.update', session: aiSessionCfg()});
       break;
     case 'session.updated':
       AI.connected = true;
       aiDot('on'); aiStatus('聆听中，请说英语', true);
       aiLive('🎤', '说英语吧！老师会自动回应');
-      aiResetBtn(); document.getElementById('aiInterruptBtn').disabled = false;
+      aiResetBtn();
       break;
     case 'input_audio_buffer.speech_started':
       AI.userB = null;
-      aiLive('🎙️', '正在听你说…');
-      if(AI.speaking){ aiSend({type:'response.cancel'}); AI.speaking = false; aiStatus('聆听中，请说英语', true); }
+      if(AI.speaking){
+        /* ★ 自动打断：检测到用户开口，立即停止老师语音 */
+        aiSend({type:'response.cancel'});
+        aiMuteRemote(true);
+        AI.speaking = false;
+        if(AI.aiB){ AI.aiB.textContent = (AI.aiText || '') + ' ✂（已打断）'; AI.aiB = null; }
+        aiLive('✋', '已接住你的插话，你说…');
+      }else{
+        aiLive('🎙️', '正在听你说…');
+      }
+      aiStatus('聆听中，请说英语', true);
       break;
     case 'input_audio_buffer.speech_stopped':
       aiLive('🧠', '收到！思考中…');
@@ -1714,9 +1822,12 @@ function aiHandle(m){
       AI.userB = null;
       break;
     case 'response.created':
-      AI.aiText = ''; AI.speaking = false;
+      /* WebRTC 模式无 output_audio_started 事件：音频走 RTP，以 response.created 作为"老师开始说话" */
+      AI.aiText = ''; AI.speaking = true; aiMuteRemote(false);
+      aiStatus('🔊 老师说话中，你随时插话', true);
       break;
     case 'response.audio_transcript.delta':
+      AI.speaking = true; /* 防御：首个字幕到达即视为说话中 */
       AI.aiText += (m.delta || '');
       if(!AI.aiB) AI.aiB = aiBubble('ai', '');
       AI.aiB.textContent = AI.aiText;
@@ -1724,16 +1835,17 @@ function aiHandle(m){
     case 'response.audio_transcript.done':
       if(AI.aiB && m.transcript) AI.aiB.textContent = m.transcript;
       break;
-    case 'response.output_audio_started':
-      AI.speaking = true; aiStatus('🔊 老师说话中，插话可打断', true);
+    case 'response.output_audio_started': /* 若服务端下发则同样置位（防御） */
+      AI.speaking = true; aiMuteRemote(false);
+      aiStatus('🔊 老师说话中，你随时插话', true);
       break;
     case 'response.done':
       AI.speaking = false; AI.aiB = null;
       aiStatus('聆听中，请说英语', true); aiLive('💬', '老师说完啦，该你咯～');
       break;
     case 'response.cancelled':
-      AI.speaking = false; AI.aiB = null;
-      aiStatus('聆听中，请说英语', true);
+      AI.speaking = false;
+      if(AI.aiB){ AI.aiB.textContent = (AI.aiText || '') + ' ✂（已打断）'; AI.aiB = null; }
       break;
     case 'error':
       var em = (m.error && m.error.message) ? m.error.message : '服务返回错误';
@@ -1753,9 +1865,10 @@ function aiEndSession(){
   if(AI.remoteAudio){ try{ AI.remoteAudio.pause(); }catch(e){} AI.remoteAudio.srcObject = null; }
   AI.remoteAudio = null;
   AI.connected = false; AI.speaking = false; AI.gating = true;
-  AI.aiB = null; AI.userB = null; AI.starting = false;
+  AI.aiB = null; AI.userB = null; AI.starting = false; AI.remoteMuted = false;
   aiMeter(0);
-  document.getElementById('aiInterruptBtn').disabled = true;
+  aiResetBtn();
+  try{ document.getElementById('aiVoiceMask').classList.remove('show'); }catch(e){}
 }
 /* 悬浮按钮引导气泡：仅首次展示 */
 (function(){
@@ -1763,6 +1876,12 @@ function aiEndSession(){
   for(var i=0;i<22;i++) w.appendChild(document.createElement('i'));
   if(!store.get('aiFabSeen', 0)) document.getElementById('aiFabTip').classList.remove('hide');
   else document.getElementById('aiFabTip').classList.add('hide');
+  /* 头部音色按钮显示当前所选音色 */
+  try{
+    var cur = aiVoiceCur();
+    var all = AI.VOICES.f.concat(AI.VOICES.m);
+    for(var j=0;j<all.length;j++){ if(all[j].id === cur){ document.getElementById('aiVoiceName').textContent = all[j].zh; break; } }
+  }catch(e){}
 })();
 
 boot();
