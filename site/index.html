@@ -240,11 +240,95 @@ body.fs-big .article .mdh{font-size:19px}
 .loading{text-align:center;color:var(--muted);padding:50px 0;font-size:13px}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(13,27,51,.9);color:#fff;font-size:12.5px;padding:9px 18px;border-radius:20px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
+
+/* ---------- AI 陪练：全局悬浮按钮 ---------- */
+#aiFabWrap{position:fixed;left:50%;transform:translateX(-50%);width:100%;max-width:560px;height:0;z-index:70;pointer-events:none}
+#aiFab{position:absolute;right:13px;bottom:calc(78px + env(safe-area-inset-bottom));pointer-events:auto;border:none;background:none;padding:0;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:3px;animation:aifabin .45s cubic-bezier(.34,1.56,.64,1)}
+@keyframes aifabin{from{transform:scale(0)}to{transform:scale(1)}}
+#aiFab .ring{width:57px;height:57px;border-radius:50%;background:#0d1b33;box-shadow:0 0 0 3px #fff,0 7px 18px rgba(15,30,51,.32);overflow:hidden;transition:transform .15s}
+#aiFab:active .ring{transform:scale(.9)}
+#aiFab .ring img{width:100%;height:100%;display:block;border-radius:50%}
+#aiFab .lab{font-size:10.5px;font-weight:800;color:#fff;background:rgba(11,61,145,.92);padding:2px 10px;border-radius:11px;box-shadow:0 2px 8px rgba(15,30,51,.25);letter-spacing:.5px}
+#aiFab.hide{display:none}
+#aiFabTip{position:absolute;right:10px;bottom:calc(148px + env(safe-area-inset-bottom));pointer-events:none;background:#fff;border:1.5px solid var(--line);border-radius:13px;border-bottom-right-radius:4px;padding:9px 13px;font-size:12.5px;color:var(--ink);font-weight:600;box-shadow:0 10px 26px rgba(15,30,51,.2);line-height:1.55;animation:aipop .25s ease}
+#aiFabTip:after{content:'';position:absolute;right:22px;bottom:-6.5px;width:11px;height:11px;background:#fff;border-right:1.5px solid var(--line);border-bottom:1.5px solid var(--line);transform:rotate(45deg)}
+#aiFabTip.hide{display:none}
+@keyframes aipop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* ---------- AI 陪练：全屏对话浮层 ---------- */
+#aiPanel{position:fixed;inset:0;z-index:80;display:none}
+#aiPanel.show{display:block}
+#aiPanel .aipmask{position:absolute;inset:0;background:rgba(8,18,36,.5)}
+#aiPanel .aipsheet{position:absolute;left:50%;transform:translateX(-50%);width:100%;max-width:560px;height:100%;background:var(--paper);display:flex;flex-direction:column}
+#aiPanel.show .aipsheet{animation:sheetup .3s cubic-bezier(.25,.8,.3,1)}
+@keyframes sheetup{from{transform:translate(-50%,100%)}to{transform:translate(-50%,0)}}
+.aihead{flex-shrink:0;background:linear-gradient(135deg,#0b3d91,#1a5fb4);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 12px rgba(11,61,145,.3);padding-top:calc(12px + env(safe-area-inset-top))}
+.aihead .aihlogo{width:34px;height:34px;border-radius:12px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto}
+.aihead .aihttl{flex:1;min-width:0}
+.aihead .aihttl b{font-size:16px;display:block}
+.aihead .aihttl span{font-size:10.5px;opacity:.85}
+.aidot{width:9px;height:9px;border-radius:50%;background:#ffd54a;box-shadow:0 0 7px #ffd54a;transition:.3s;flex:0 0 auto}
+.aidot.on{background:#6cff2e;box-shadow:0 0 9px #6cff2e}
+.aidot.err{background:#ff5d5d;box-shadow:0 0 9px #ff5d5d}
+.aihead .aix{width:30px;height:30px;border-radius:10px;border:none;background:rgba(255,255,255,.2);color:#fff;font-size:14px;cursor:pointer;font-family:inherit;flex:0 0 auto}
+.aibody{flex:1;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;padding:14px 12px 6px;display:flex;flex-direction:column;gap:9px;scrollbar-width:none}
+.aibody::-webkit-scrollbar{display:none}
+.aib{max-width:85%;padding:9px 13px;border-radius:15px;font-size:14.5px;line-height:1.65;white-space:pre-wrap;word-break:break-word;animation:aipop .18s ease}
+.aib:empty{display:none}
+.aib.me{align-self:flex-end;background:var(--azure);color:#fff;border-bottom-right-radius:5px}
+.aib.ai{align-self:flex-start;background:#fff;border:1px solid #d8e4f4;border-bottom-left-radius:5px;box-shadow:0 2px 8px rgba(15,30,51,.05)}
+.aib.errb{align-self:center;background:#fdecec;color:#b3261e;font-size:12px;border:1px solid #f6cfcb;border-radius:999px;padding:5px 15px;max-width:92%;text-align:center}
+.aihint{align-self:center;color:var(--muted);font-size:11.5px;text-align:center;padding:0 24px;line-height:1.7}
+.ailive{flex-shrink:0;padding:0 14px 6px}
+.ailive .lin{min-height:40px;background:#fff;border:1px solid #e0e9f5;border-radius:13px;padding:7px 13px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.aifoot{flex-shrink:0;background:#fff;border-top:1px solid var(--line);padding:8px 14px calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
+.aiwave{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:30px}
+.aiwave i{width:4.5px;background:var(--azure);border-radius:3px;height:4px;transition:height .08s;opacity:.85}
+.aistat{display:flex;align-items:center;justify-content:center;font-size:12.5px;color:var(--muted);min-height:20px;gap:6px}
+.aistat .bdot{width:8px;height:8px;border-radius:50%;background:var(--azure);animation:ablink 1.2s infinite;display:none}
+.aistat.s1 .bdot,.aistat.s3 .bdot{display:block}
+@keyframes ablink{50%{opacity:.2}}
+.aibtns{display:flex;gap:10px}
+.aibtns button{flex:1;border:none;border-radius:15px;padding:13px 0;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;transition:.15s}
+.aiinterrupt{background:#fff1f0;color:#d84a26;border:1.5px solid #ffd7cd !important;flex:0 0 108px !important}
+.aiinterrupt:disabled{opacity:.4}
+.aiclose{background:linear-gradient(135deg,#0b3d91,#1a5fb4);color:#fff;box-shadow:0 6px 16px rgba(11,61,145,.35)}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div class="toast" id="toast"></div>
+
+<!-- AI 陪练：全局悬浮按钮（任意页面可见） -->
+<div id="aiFabWrap">
+  <div id="aiFabTip" class="hide">👋 随时开口练英语<br><b style="color:var(--azure-d)">点我开始对话</b></div>
+  <button id="aiFab" onclick="aiOpen()" aria-label="AI陪练">
+    <span class="ring"><img src="img/ai_fab.png" alt=""></span>
+    <span class="lab">AI陪练</span>
+  </button>
+</div>
+<!-- AI 陪练：实时对话浮层 -->
+<div id="aiPanel">
+  <div class="aipmask" onclick="aiClose()"></div>
+  <div class="aipsheet">
+    <div class="aihead">
+      <div class="aihlogo">🎤</div>
+      <div class="aihttl"><b>AI 陪练</b><span>实时英语对话 · 插话即打断</span></div>
+      <div class="aidot" id="aiDot"></div>
+      <button class="aix" onclick="aiClose()" aria-label="关闭">✕</button>
+    </div>
+    <div class="aibody" id="aiChat"><div class="aihint">建议佩戴耳机获得最佳对话体验。<br>开始后直接说英语，老师会自动回应；老师说话时你随时插话即可打断。</div></div>
+    <div class="ailive"><div class="lin" id="aiLive"><span>💬</span><span id="aiLiveTxt">准备中…</span></div></div>
+    <div class="aifoot">
+      <div class="aiwave" id="aiWave"></div>
+      <div class="aistat" id="aiStat"><span class="bdot"></span><span id="aiStatTxt">连接中…</span></div>
+      <div class="aibtns">
+        <button class="aiinterrupt" id="aiInterruptBtn" onclick="aiInterrupt()" disabled>✋ 打断</button>
+        <button class="aiclose" onclick="aiClose()">结束对话</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -1327,6 +1411,7 @@ function renderAnimated(view, from){
 /* ---------- Android 硬件返回键 ---------- */
 window.nativeBack = function(){
   try{
+    if(AI.open){ aiClose(); return true; } /* 优先关闭 AI 陪练浮层 */
     var tip = document.querySelector('.tip');
     if(tip){ tip.remove(); var m = document.querySelector('.tipmask'); if(m) m.remove();
       document.querySelectorAll('.w.lit').forEach(function(x){x.classList.remove('lit');}); return true; }
@@ -1342,6 +1427,258 @@ window.nativeBack = function(){
     return false;
   }catch(e){ return false; }
 };
+
+/* ============ AI 陪练：实时语音对话（WebRTC 全双工） ============ */
+/* 连接过程信息不展示，仅报错提示；密钥由服务端代理持有，页面零密钥 */
+var AI = {
+  open:false, pc:null, dc:null, micStream:null, micTrack:null, audioSender:null,
+  remoteAudio:null, connected:false, speaking:false, gating:true,
+  ac:null, analyser:null, raf:0, aiText:'', aiB:null, userB:null, starting:false
+};
+AI.MODEL = 'qwen3.8-omni-flash-realtime';
+AI.SDP_URL = '/api/v1/webrtc/realtime?model=' + AI.MODEL;
+AI.INST = 'You are a friendly American English teacher in a live voice call. Keep replies short and natural (1-3 spoken sentences), encourage the student, and gently correct grammar mistakes by rephrasing. Avoid long explanations unless asked.';
+
+function aiBubble(cls, txt){
+  var d = document.createElement('div');
+  d.className = 'aib ' + cls; d.textContent = txt;
+  var chat = document.getElementById('aiChat');
+  var hint = chat.querySelector('.aihint'); if(hint) hint.remove();
+  chat.appendChild(d);
+  requestAnimationFrame(function(){ chat.scrollTop = chat.scrollHeight; });
+  return d;
+}
+function aiLive(em, txt){ document.getElementById('aiLiveTxt').textContent = txt; }
+function aiStatus(txt, withDot){
+  var st = document.getElementById('aiStat');
+  document.getElementById('aiStatTxt').textContent = txt;
+  st.className = 'aistat' + (withDot ? ' s1' : '');
+}
+function aiDot(cls){ var d = document.getElementById('aiDot'); d.className = 'aidot' + (cls ? ' ' + cls : ''); }
+function aiMeter(v){
+  var bars = document.getElementById('aiWave').children;
+  for(var i=0;i<bars.length;i++){
+    var h = 4 + Math.abs(Math.sin(Date.now()/170 + i/2.2)) * v * 26 * (0.4 + Math.random()*0.6);
+    bars[i].style.height = Math.min(30, h) + 'px';
+  }
+}
+function aiErr(msg){
+  aiBubble('errb', '⚠ ' + msg);
+  toast('AI陪练：' + msg);
+  aiDot('err');
+  aiStatus('连接出错，请结束后重试', false);
+}
+function aiSend(obj){ if(AI.dc && AI.dc.readyState === 'open'){ try{ AI.dc.send(JSON.stringify(obj)); }catch(e){} } }
+
+function aiOpen(){
+  if(AI.open || AI.starting) return;
+  AI.open = true;
+  try{ var t = document.getElementById('aiFabTip'); if(t) t.classList.add('hide'); store.set('aiFabSeen', 1); }catch(e){}
+  try{ audioStop(); }catch(e){} /* 打开陪练即停课文/电台播放 */
+  var chat = document.getElementById('aiChat');
+  chat.innerHTML = '<div class="aihint">建议佩戴耳机获得最佳对话体验。<br>开始后直接说英语，老师会自动回应；老师说话时你随时插话即可打断。</div>';
+  document.getElementById('aiPanel').classList.add('show');
+  aiDot(''); aiStatus('连接中…', false); aiLive('💬', '正在开始会话…');
+  document.getElementById('aiInterruptBtn').disabled = true;
+  aiSession();
+}
+function aiClose(){
+  if(!AI.open) return;
+  aiEndSession();
+  AI.open = false;
+  document.getElementById('aiPanel').classList.remove('show');
+}
+function aiInterrupt(){
+  if(!AI.connected) return;
+  aiSend({type:'response.cancel'});
+  if(AI.remoteAudio){ try{ AI.remoteAudio.pause(); AI.remoteAudio.play(); }catch(e){} }
+  AI.speaking = false; aiStatus('聆听中，请说英语', true); aiLive('✋', '已打断，你说…');
+}
+
+async function aiSession(){
+  AI.starting = true;
+  try{
+    AI.micStream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
+  }catch(e){
+    AI.starting = false;
+    aiErr('麦克风不可用（' + (e && e.name ? e.name : '未知') + '），请授权麦克风后重试');
+    return;
+  }
+  var pc = new RTCPeerConnection({iceServers:[]});
+  AI.pc = pc;
+  AI.connErr = false;
+  var connTimer = 0;
+  pc.onconnectionstatechange = function(){
+    if(!AI.pc) return;
+    if(pc.connectionState === 'connected'){
+      /* 网络恢复：清除波动状态 */
+      if(connTimer){ clearTimeout(connTimer); connTimer = 0; }
+      if(AI.connected){ if(AI.connErr){ AI.connErr = false; aiDot('on'); } if(!AI.speaking) aiStatus('聆听中，请说英语', true); }
+    }else if(pc.connectionState === 'disconnected'){
+      /* ICE 闪断：先观察 8 秒等待自动恢复，不弹错误 */
+      if(AI.open && AI.connected && !connTimer){
+        connTimer = setTimeout(function(){
+          connTimer = 0;
+          if(AI.pc && AI.pc.connectionState !== 'connected' && AI.open){ aiErr('网络波动，请结束后重试'); }
+        }, 8000);
+      }
+    }else if(pc.connectionState === 'failed' || pc.connectionState === 'closed'){
+      if(AI.open && !AI.connErr){ AI.connErr = true; aiErr('通话连接已断开'); AI.connected = false; document.getElementById('aiInterruptBtn').disabled = true; }
+    }
+  };
+  pc.ontrack = function(e){
+    if(!AI.remoteAudio){
+      AI.remoteAudio = document.createElement('audio');
+      AI.remoteAudio.autoplay = true;
+      AI.remoteAudio.hidden = true;
+      document.getElementById('aiPanel').appendChild(AI.remoteAudio);
+    }
+    AI.remoteAudio.srcObject = e.streams[0];
+    AI.remoteAudio.play().catch(function(){});
+  };
+  pc.ondatachannel = function(ev){ aiBindChannel(ev.channel); };
+  AI.dc = pc.createDataChannel('oai-events');
+  aiBindChannel(AI.dc);
+
+  AI.micTrack = AI.micStream.getAudioTracks()[0];
+  AI.audioSender = pc.addTrack(AI.micTrack, AI.micStream);
+  AI.micTrack.enabled = false;
+  try{ await AI.audioSender.replaceTrack(null); }catch(e){} /* 媒体门控：session.created 前不发送 */
+
+  /* 音量条 */
+  try{
+    AI.ac = new (window.AudioContext || window.webkitAudioContext)();
+    var srcN = AI.ac.createMediaStreamSource(AI.micStream);
+    AI.analyser = AI.ac.createAnalyser(); AI.analyser.fftSize = 512;
+    srcN.connect(AI.analyser);
+    var dat = new Uint8Array(AI.analyser.frequencyBinCount);
+    var pump = function(){
+      if(!AI.analyser) return;
+      AI.analyser.getByteTimeDomainData(dat);
+      var pk = 0;
+      for(var i=0;i<dat.length;i++){ var v = Math.abs(dat[i]-128)/128; if(v > pk) pk = v; }
+      aiMeter(pk);
+      AI.raf = requestAnimationFrame(pump);
+    };
+    pump();
+  }catch(e){}
+
+  try{
+    var offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await new Promise(function(res){
+      if(pc.iceGatheringState === 'complete') return res();
+      pc.onicegatheringstatechange = function(){ if(pc.iceGatheringState === 'complete') res(); };
+      setTimeout(res, 2500);
+    });
+    if(!AI.pc){ return; } /* 已被关闭 */
+    var r = await fetch(AI.SDP_URL, {method:'POST', headers:{'Content-Type':'application/sdp'}, body:pc.localDescription.sdp});
+    if(!r.ok){ var t = await r.text(); throw new Error('服务返回 ' + r.status); }
+    var ans = await r.text();
+    if(!AI.pc){ return; }
+    var fixed = ans.replace(/\r\n/g,'\n').trim().split('\n').map(function(l){return l.trim();}).filter(function(l){return l;}).join('\r\n') + '\r\n';
+    await pc.setRemoteDescription({type:'answer', sdp:fixed});
+  }catch(e){
+    AI.starting = false;
+    if(AI.open) aiErr('连接失败：' + (e && e.message ? e.message : '网络异常'));
+    aiEndSession();
+    return;
+  }
+  AI.starting = false;
+}
+
+function aiBindChannel(ch){
+  ch.onmessage = function(e){
+    var m; try{ m = JSON.parse(e.data); }catch(err){ return; }
+    aiHandle(m);
+  };
+}
+function aiHandle(m){
+  switch(m.type){
+    case 'session.created':
+      AI.gating = false; AI.micTrack.enabled = true;
+      try{ AI.audioSender.replaceTrack(AI.micTrack); }catch(e){}
+      aiSend({type:'session.update', session:{
+        modalities:['text','audio'], voice:'Tina', instructions:AI.INST,
+        input_audio_format:'pcm', output_audio_format:'pcm', smooth_output:false,
+        input_audio_transcription:{model:'qwen3-asr-flash-realtime'},
+        turn_detection:{type:'semantic_vad', prefix_padding_ms:500, silence_duration_ms:900, threshold:0.1}
+      }});
+      break;
+    case 'session.updated':
+      AI.connected = true;
+      aiDot('on'); aiStatus('聆听中，请说英语', true);
+      aiLive('🎤', '说英语吧！老师会自动回应');
+      document.getElementById('aiInterruptBtn').disabled = false;
+      break;
+    case 'input_audio_buffer.speech_started':
+      AI.userB = null;
+      aiLive('🎙️', '正在听你说…');
+      if(AI.speaking){ aiSend({type:'response.cancel'}); AI.speaking = false; aiStatus('聆听中，请说英语', true); }
+      break;
+    case 'input_audio_buffer.speech_stopped':
+      aiLive('🧠', '收到！思考中…');
+      break;
+    case 'conversation.item.input_audio_transcription.delta':
+      var ut = (m.text || '') + (m.stash || '');
+      if(!AI.userB) AI.userB = aiBubble('me', '');
+      AI.userB.textContent = ut;
+      break;
+    case 'conversation.item.input_audio_transcription.completed':
+      if(AI.userB && m.transcript) AI.userB.textContent = m.transcript;
+      AI.userB = null;
+      break;
+    case 'response.created':
+      AI.aiText = ''; AI.speaking = false;
+      break;
+    case 'response.audio_transcript.delta':
+      AI.aiText += (m.delta || '');
+      if(!AI.aiB) AI.aiB = aiBubble('ai', '');
+      AI.aiB.textContent = AI.aiText;
+      break;
+    case 'response.audio_transcript.done':
+      if(AI.aiB && m.transcript) AI.aiB.textContent = m.transcript;
+      break;
+    case 'response.output_audio_started':
+      AI.speaking = true; aiStatus('🔊 老师说话中，插话可打断', true);
+      break;
+    case 'response.done':
+      AI.speaking = false; AI.aiB = null;
+      aiStatus('聆听中，请说英语', true); aiLive('💬', '老师说完啦，该你咯～');
+      break;
+    case 'response.cancelled':
+      AI.speaking = false; AI.aiB = null;
+      aiStatus('聆听中，请说英语', true);
+      break;
+    case 'error':
+      var em = (m.error && m.error.message) ? m.error.message : '服务返回错误';
+      aiErr(em);
+      break;
+  }
+}
+function aiEndSession(){
+  if(AI.raf) cancelAnimationFrame(AI.raf);
+  AI.raf = 0; AI.analyser = null;
+  if(AI.ac){ try{ AI.ac.close(); }catch(e){} }
+  AI.ac = null;
+  if(AI.micStream){ AI.micStream.getTracks().forEach(function(t){ t.stop(); }); }
+  AI.micStream = null; AI.micTrack = null; AI.audioSender = null;
+  if(AI.pc){ try{ AI.pc.close(); }catch(e){} }
+  AI.pc = null; AI.dc = null;
+  if(AI.remoteAudio){ try{ AI.remoteAudio.pause(); }catch(e){} AI.remoteAudio.srcObject = null; }
+  AI.remoteAudio = null;
+  AI.connected = false; AI.speaking = false; AI.gating = true;
+  AI.aiB = null; AI.userB = null; AI.starting = false;
+  aiMeter(0);
+  document.getElementById('aiInterruptBtn').disabled = true;
+}
+/* 悬浮按钮引导气泡：仅首次展示 */
+(function(){
+  var w = document.getElementById('aiWave');
+  for(var i=0;i<22;i++) w.appendChild(document.createElement('i'));
+  if(!store.get('aiFabSeen', 0)) document.getElementById('aiFabTip').classList.remove('hide');
+  else document.getElementById('aiFabTip').classList.add('hide');
+})();
 
 boot();
 </script>
