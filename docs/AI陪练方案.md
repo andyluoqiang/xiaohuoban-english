@@ -1,7 +1,7 @@
 ﻿# 英语小伙伴「AI 陪练」实时语音对话功能方案
 
 > 基于 2026-10-19 实测（MiniMax 订阅 Key + 各厂商官网调研 + 阿里 Realtime P0 实测）整理
-> 状态：方案稿 v2.7（P2.3 完成 + AOQ 鉴权研究完成）
+> 状态：方案稿 v2.8（P2.4 完成：老师名字跟随音色联动）
 
 ---
 
@@ -162,6 +162,14 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 - **处理**：整体删除 ailive 提示条（HTML/CSS/aiLive 函数及全部调用点，grep 清零）；状态反馈统一到底部状态行——用户停止说话后短暂显示「🧠 思考中…」，其余沿用「聆听中/老师说话中」；聊天区可视高度相应增加。
 - **验证**：本地+线上回归——完整对话、自动打断、状态切换正常，布局无重叠（getBoundingClientRect 校验 + 截图确认）；git：f5b250f。
 
+### P2.4 老师名字跟随音色联动（2026-10-19 晚）
+
+- **问题**：原人设指令只定义身份未指定名字，AI 被问名字时自称 "Alex"（模型即兴编造），与所选音色无关，换音色后名字也不变。
+- **方案**：`AI.INST` 改为 `AI.INST_TPL` 模板（`You are {NAME}, ... {NAME} is the name you go by — always use it when asked your name, never invent another.`）；`aiInst()` 按当前音色实时替换 `{NAME}` 注入 instructions（`aiVoiceCur()` → `aiFindVoice()` 定位音色，无效值兜底 Tina）；`aiSessionCfg()` 改用 `aiInst()`；切音色问候语改为 "Greet me in your new voice and introduce your name in one short sentence."，换音色即随新名字自我介绍。
+- **验证**：本地端到端——选 Aiden 音色发文本 "what is your name"，AI 回复 "Hi there! I'm Aiden, your friendly American English teacher."；线上 evaluate 确认模板/函数/问候语部署在位。测试中 voiceHeader 曾显示旧音色名，属测试脚本直改 localStorage 的假象（按钮文本仅页面加载时同步），真实用户流程无此问题，未做修复。
+- **范围**：仅改 `index.html`（13 增 3 删）；部署 VPS（index.html 110,181 字节 + ai_fab.png）；git：69ecc1a（一并补推上次滞留的 b239b99）。
+- **会话历史**：用户拍板暂不做（成本/隐私/复杂度分析已留档此前讨论）。
+
 ### AOQ 协议 Token 鉴权研究（2026-10-19 晚，官方文档 + 实测）
 
 - **机制**：服务端代理鉴权（AppServer 模式）。AppServer 携 API Key 调 `POST /api/v1/webrtc/realtime?model=xxx`（Header `x-dashscope-rtc-transport: moq`，body 可传 `clientIp` 就近分配），网关返回**一次性连接包**：`sid`（会话ID）、`aoqTokenForClient`（32位客户端令牌）、`clientRelayEndpoints`（Relay中继 IP:8443）、`clientRelayCertFingerprint`（证书指纹）、`sidExpiresInSecs`（默认 7200 秒）。客户端将 token/sid/relayEndpoints/certFingerprint 填入 AOQ SDK `engine.connect()` 直连 Relay；建连后传输不再鉴权；**API Key 全程不出服务端**，泄露的 Token 也只有 2 小时单会话生命周期。
@@ -185,6 +193,6 @@ Qwen3.8-Omni-Flash-Realtime 服务端
 
 ---
 
-*文档：AI陪练方案.md v2.7 · 2026-10-19*
+*文档：AI陪练方案.md v2.8 · 2026-10-19*
 
 > AI生成
