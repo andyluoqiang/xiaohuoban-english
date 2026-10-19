@@ -271,7 +271,7 @@ body.fs-big .article .mdh{font-size:19px}
 .aidot.on{background:#6cff2e;box-shadow:0 0 9px #6cff2e}
 .aidot.err{background:#ff5d5d;box-shadow:0 0 9px #ff5d5d}
 .aihead .aix{width:30px;height:30px;border-radius:10px;border:none;background:rgba(255,255,255,.2);color:#fff;font-size:14px;cursor:pointer;font-family:inherit;flex:0 0 auto}
-.aibody{flex:1;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;padding:14px 12px 6px;display:flex;flex-direction:column;gap:9px;scrollbar-width:none}
+.aibody{flex:1;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;padding:14px 12px 12px;display:flex;flex-direction:column;gap:9px;scrollbar-width:none}
 .aibody::-webkit-scrollbar{display:none}
 .aib{max-width:85%;padding:9px 13px;border-radius:15px;font-size:14.5px;line-height:1.65;white-space:pre-wrap;word-break:break-word;animation:aipop .18s ease}
 .aib:empty{display:none}
@@ -1615,13 +1615,25 @@ function aiPickVoice(id, zh){
   }
 }
 
+function aiScroll(force){
+  /* 聊天区自动滚底：流式输出时跟随最新内容；用户主动上翻回看时不打扰（距底>90px 不强制） */
+  var chat = document.getElementById('aiChat');
+  if(!chat) return;
+  var nearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 90;
+  if(force || nearBottom){
+    requestAnimationFrame(function(){
+      var c = document.getElementById('aiChat');
+      if(c) c.scrollTop = c.scrollHeight;
+    });
+  }
+}
 function aiBubble(cls, txt){
   var d = document.createElement('div');
   d.className = 'aib ' + cls; d.textContent = txt;
   var chat = document.getElementById('aiChat');
   var hint = chat.querySelector('.aihint'); if(hint) hint.remove();
   chat.appendChild(d);
-  requestAnimationFrame(function(){ chat.scrollTop = chat.scrollHeight; });
+  aiScroll(true);
   return d;
 }
 function aiStatus(txt, withDot){
@@ -1891,10 +1903,12 @@ function aiHandle(m){
       var ut = (m.text || '') + (m.stash || '');
       if(!AI.userB) AI.userB = aiBubble('me', '');
       AI.userB.textContent = ut;
+      aiScroll();
       break;
     case 'conversation.item.input_audio_transcription.completed':
       if(AI.userB && m.transcript) AI.userB.textContent = m.transcript;
       AI.userB = null;
+      aiScroll();
       break;
     case 'response.created':
       /* WebRTC 模式无 output_audio_started 事件：音频走 RTP，以 response.created 作为"老师开始说话" */
@@ -1906,9 +1920,11 @@ function aiHandle(m){
       AI.aiText += (m.delta || '');
       if(!AI.aiB) AI.aiB = aiBubble('ai', '');
       AI.aiB.textContent = AI.aiText;
+      aiScroll();
       break;
     case 'response.audio_transcript.done':
       if(AI.aiB && m.transcript) AI.aiB.textContent = m.transcript;
+      aiScroll();
       break;
     case 'response.output_audio_started': /* 若服务端下发则同样置位（防御） */
       AI.speaking = true; aiMuteRemote(false);
@@ -1921,6 +1937,7 @@ function aiHandle(m){
     case 'response.cancelled':
       AI.speaking = false;
       if(AI.aiB){ AI.aiB.textContent = (AI.aiText || '') + ' ✂（已打断）'; AI.aiB = null; }
+      aiScroll();
       break;
     case 'error':
       var em = (m.error && m.error.message) ? m.error.message : '服务返回错误';
