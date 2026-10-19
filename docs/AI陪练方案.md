@@ -1,0 +1,134 @@
+# 英语小伙伴「AI 陪练」实时语音对话功能方案
+
+> 基于 2026-10-19 实测（MiniMax 订阅 Key + 各厂商官网调研 + 阿里 Realtime P0 实测）整理
+> 状态：方案稿 v2.1（P0 已完成实测验证，待确认后进入 P1，暂不改 App 代码）
+
+---
+
+## 一、背景与需求
+
+英语小伙伴 App 新增全局功能「AI 陪练」：点击图标进入**实时 AI 英语对话**，像电话聊天一样，可随时打断。
+
+用户拍板要点（2026-10-14）：①一步到位做全双工实时打断，不做逐句过渡；②key 先放 App 里；③先形成方案，暂不改代码。
+
+## 二、MiniMax 能力实测结论（2026-10-19，真实调用验证）
+
+| 能力 | 接口 | 实测结果 | 说明 |
+|---|---|---|---|
+| 文本对话 | `POST /v1/chat/completions`（OpenAI 兼容） | ✅ 200 | MiniMax-M2.7 / M3.1-Flash 均可调用，支持流式 |
+| 语音合成 TTS | `POST /v1/t2a_v2` | ✅ 200 | 返回 base64 MP3；speech-2.5-hd-preview / speech-02-hd 可用；音色 `female-shaonv` 有效 |
+| 流式 TTS（WebSocket） | `/ws/v1/t2a_v2` | ✅ 文档确认 | 按句发送文本，流式返回音频，低延迟播报 |
+| **双向流式 TTS（可打断）** | `/ws/v1/t2a_v2_bidi` | ✅ 文档确认 | 逐字流式输入、服务端攒句、**task_cancel 打断**、task_flush 催句 |
+| 语音识别 ASR | `POST /v1/speech_to_text` | ✅ 200 | 模型 asr-1.0；SSE 流式返回、说话人分离、字幕；音频≤500s/50MB |
+| 模型原生音频输出 | chat 的 `audio_content` 字段 | ⚠️ 字段存在但为空 | M3.1-Flash 声明支持，实测未返回音频数据，不作为依赖 |
+| **全双工 Realtime API** | 多路径 WebSocket 探测 | ❌ 全部 404 | **MiniMax 无现成的「全双工实时语音对话」一体 API**，只能 ASR+LLM+TTS 三段拼接 |
+
+## 三、实时语音服务选型对比（2026-10 调研，官网现行价）
+
+| 对比项 | **阿里云百炼**（首选） | 火山引擎·豆包 | MiniMax | 硅基流动 |
+|---|---|---|---|---|
+| 实时一体 API | ✅ **Qwen-Omni-Realtime** | ✅ Doubao-Seed-RealtimeVoice | ❌ 无 | ❌ 无 |
+| 形态 | 端到端全双工（WS/WebRTC/AOQ） | 端到端全双工（火山方舟） | 仅 ASR/TTS/LLM 分离 | 仅 ASR/TTS 分离 |
+| 音频输入价 | **6 元/百万 token** | 80 元/百万 token | 按时长/字符另计 | TTS 0.05元/千字符 |
+| 音频输出价 | **12 元/百万 token** | 80 元/百万 token | 按时长/字符另计 | — |
+| 文本输入/输出价 | 1.5 / 4.5 元/百万 token | 统一 80/80 | 订阅内 | 按模型 |
+| 免费额度 | **100 万 token（北京，90天）** | 新客券/资源包 | 订阅 key | 部分免费 |
+| 打断能力 | ✅ 服务端 VAD / semantic_vad（过滤附和声、防误触发） | ✅ 更自然打断（时延约1秒/裸模型700ms） | ⚠️ 需自拼 task_cancel | ❌ |
+| 语种 | 识别 113 种 / 合成 36 种 | 主流方言+普通话见长 | 多语种 | 取决于模型 |
+| 音色复刻 | ✅ 声音复刻 | ✅ 5 秒复刻 | ✅ | ❌ |
+| 接入生态 | 官方 Python/Java SDK、三种协议 | 火山方舟 SDK | OpenAI 兼容 | OpenAI 兼容 |
+| 官网 | https://help.aliyun.com/zh/model-studio/realtime | https://www.volcengine.com/product/realtime-voice-model | https://platform.minimax.cn/docs | https://www.siliconflow.cn/models |
+| 备注 | **性价比最高**；北京地域需业务空间 ID | 中文情感/方言演绎最强，价格约阿里 7~13 倍 | 已有订阅 key 可做降级备选 | 无实时对话能力，排除 |
+
+**选型结论**：英语陪练场景**首选阿里 qwen3.8-omni-flash-realtime**——单价低一个数量级（音频输入便宜约 13 倍、输出约 6.7 倍）、有免费额度、支持声音复刻（可定制亲和的美式发音老师）、官方 SDK 齐全；**豆包作为备选**（中文情感/方言表现突出时切换）；**MiniMax 拼接方案降级为兜底路线**（现有 key 零成本可验证，但只能做到"对讲机式"交互）。
+
+⚠️ 注意：各家音频 token 换算口径可能不同（每秒语音对应 token 数定义不一样），最终"每分钟对话成本"建议各自充值后用真实录音各实测一轮。
+
+## 四、架构设计
+
+### 主路线：阿里 Qwen-Omni-Realtime（一站式全双工）
+
+```
+H5/App 录音(16kHz PCM)
+   ↕ WebSocket（wss://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime?model=qwen3.8-omni-flash-realtime）
+Qwen3.8-Omni-Flash-Realtime 服务端
+   ├─ 输入：流式音频（1/2/4 声道）、文本、图像帧
+   ├─ 输出：流式音频（24kHz PCM）+ 文本字幕
+   ├─ 轮次检测：server_vad / semantic_vad（自动判断说话起止，天然支持打断）
+   └─ 指令：session.update 配置音色/instructions（英语老师人设）
+播放（24kHz PCM 边收边播）+ 字幕上屏
+```
+
+一次会话一个 WebSocket 连接，无需客户端编排 ASR/LLM/TTS 三段流水线；打断由服务端 VAD 自动处理（用户开口即停播并切换聆听）。
+
+### 备选路线 A：火山豆包实时语音（情感/方言增强时切换）
+形态与主路线相同（端到端全双工），接入走火山方舟；单价高，仅在需要更强中文情感演绎时启用。
+
+### 备选路线 B：MiniMax 三段拼接（现有 key 兜底，"对讲机式"）
+
+```
+录音 → ASR(/v1/speech_to_text) → LLM(/v1/chat/completions, M3.1-Flash)
+    → TTS(/ws/v1/t2a_v2_bidi 逐token攒句) → 播放 ← 打断: task_cancel
+```
+
+单轮延迟约 2~4 秒，为"对讲机式"交互；适用于主路线故障/额度耗尽时降级。
+
+### 适配层设计
+
+三路线统一抽象为 `RealtimeSession` 接口（connect / updateSession / appendAudio / onAudioDelta / onTextDelta / onInterrupted / close），主备切换只改实现类，UI 层无感。
+
+## 五、涉及工作清单
+
+### A. 接入层（主路线：阿里 Realtime）
+1. **会话管理**：业务空间 ID + API Key 配置、WebSocket 建连/重连（120s 空闲保活）、session.update（modalities=text+audio、音色、instructions 英语老师人设、turn_detection 模式选择）
+2. **音频采集/播放**：16kHz 16bit 单声道 PCM 采集分块（3200 字节/块）、24kHz PCM 流式播放队列
+3. **事件处理**：response.audio.delta / response.text.delta / input_audio_transcription（实时字幕）/ speech_started（打断）/ error 重试
+
+### B. 入口与 UI（H5 层）
+4. **全局入口**：底部导航/首页加「AI 陪练」图标
+5. **对话页**：录音状态指示（聆听/思考/说话三态）、对话气泡（用户/AI）、实时字幕（输入转写+输出字幕）、挂断按钮
+6. **打断交互**：服务端 VAD 自动打断为主 + 手动点麦克风强制打断兜底
+7. **设置项**：音色选择、语速、AI 人设（口语老师/语伴）、难度分级
+
+### C. 鉴权与安全（key 先放 App 里，用户已拍板）
+8. Key 存 App 本地存储；web 版提示暴露风险；正式分发建议后端中转
+9. 会话超时、错误友好提示（配额用尽/断网/限流 60RPM）
+
+### D. 稳定性与体验
+10. 弱网重连（WebRTC/AOQ 协议备选，内置回声消除与降噪）
+11. Android 6.0+ 录音动态权限；后台/锁屏暂停
+12. 用量监控（音频 token 消耗统计，防止费用失控）
+
+## 六、分阶段计划（建议）
+
+| 阶段 | 内容 | 验收 |
+|---|---|---|
+| **P0（先行验证，✅ 已完成 2026-10-19）** | 开通阿里百炼 key（北京地域 + 业务空间 ID）→ Python 脚本实测一轮"录音→AI 语音回复"（验证时延/音色/打断） | ✅ 命令行完成一轮真实对话，实测数据见下节 |
+| P1 | H5 原型页（麦克风实时对话 + 字幕 + 打断），部署到网页版验证 | 浏览器/App 网页版可连续多轮对话 |
+| P2 | 完整对话页 UI + 设置项 + 多轮上下文 + 状态机 | App 内体验稳定 |
+| P3（可选） | 豆包备选接入（适配层）；后端密钥中转；音色复刻定制 | 安全加固 + 双供应商容灾 |
+
+### P0 实测记录（2026-10-19，Windows + Python websocket-client，Manual 模式）
+
+- 模型：`qwen3.8-omni-flash-realtime`（华北2北京，业务空间绑定 WebSocket 直连）
+- 输入：7.6 秒英文语音（16kHz/16bit/mono PCM），instructions 设为美式英语老师人设，音色 Tina
+- **实测延迟**：session.created ≈1ms；音频上传+commit 374ms；**首字文本 +740ms；首音 +1007ms**；整轮 2.0s
+- **回复**：自然口语文本 + 7.0 秒 24kHz PCM 语音（337,920 字节）
+- **成本**：输入 788 / 输出 112 token ≈ **0.006 元/轮**；连续对话估算约 0.02~0.05 元/分钟；同轮按豆包单价估算约 0.07 元（**实测口径阿里便宜约 12 倍**）
+- 结论：**全链路验证通过，1 秒级首音延迟达到"电话式"体验标准，成本可忽略**；服务端 VAD 自动打断留待 P1 H5 原型验证
+
+## 七、风险与注意事项
+
+- **计费口径**：各家音频 token 换算不同，上线前用真实录音实测每分钟成本（阿里有 100 万 token 免费额度可先测）。
+- **Key 安全**：key 放 App 内有泄露风险，正式分发建议服务端中转（初期已确认可放）。
+- **地域要求**：阿里 Realtime 需北京/新加坡地域 API Key + 业务空间 ID，WebSocket 地址须绑定业务空间。
+- **限流**：阿里 60 RPM / 200 万 TPM，个人陪练场景足够。
+- **豆包单价高**：约阿里 7~13 倍，仅按需启用；火山方舟接入需 endpoint 配置。
+- **MiniMax 兜底路线**：M3.1-Flash 原生音频输出实测为空，必须走 TTS 通道；仅能"对讲机式"交互。
+- **音色**：阿里默认音色 Tina，可复刻定制；英语陪练建议先试官方英文音色列表。
+
+---
+
+*文档：AI陪练方案.md v2.1 · 2026-10-19*
+
+> AI生成
