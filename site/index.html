@@ -243,11 +243,12 @@ body.fs-big .article .mdh{font-size:19px}
 
 /* ---------- AI 陪练：全局悬浮按钮 ---------- */
 #aiFabWrap{position:fixed;left:50%;transform:translateX(-50%);width:100%;max-width:560px;height:0;z-index:70;pointer-events:none}
-#aiFab{position:absolute;right:13px;bottom:calc(78px + env(safe-area-inset-bottom));pointer-events:auto;border:none;background:none;padding:0;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:3px;animation:aifabin .45s cubic-bezier(.34,1.56,.64,1)}
+#aiFab{position:absolute;right:13px;bottom:calc(78px + env(safe-area-inset-bottom));pointer-events:auto;border:none;background:none;padding:0;cursor:grab;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:3px;animation:aifabin .45s cubic-bezier(.34,1.56,.64,1);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;-webkit-tap-highlight-color:transparent}
+#aiFab.grip{cursor:grabbing}
 @keyframes aifabin{from{transform:scale(0)}to{transform:scale(1)}}
 #aiFab .ring{width:57px;height:57px;border-radius:50%;background:#0d1b33;box-shadow:0 0 0 3px #fff,0 7px 18px rgba(15,30,51,.32);overflow:hidden;transition:transform .15s}
 #aiFab:active .ring{transform:scale(.9)}
-#aiFab .ring img{width:100%;height:100%;display:block;border-radius:50%}
+#aiFab .ring img{width:100%;height:100%;display:block;border-radius:50%;-webkit-user-drag:none;pointer-events:none}
 #aiFab .lab{font-size:10.5px;font-weight:800;color:#fff;background:rgba(11,61,145,.92);padding:2px 10px;border-radius:11px;box-shadow:0 2px 8px rgba(15,30,51,.25);letter-spacing:.5px}
 #aiFab.hide{display:none}
 #aiFabTip{position:absolute;right:10px;bottom:calc(148px + env(safe-area-inset-bottom));pointer-events:none;background:#fff;border:1.5px solid var(--line);border-radius:13px;border-bottom-right-radius:4px;padding:9px 13px;font-size:12.5px;color:var(--ink);font-weight:600;box-shadow:0 10px 26px rgba(15,30,51,.2);line-height:1.55;animation:aipop .25s ease}
@@ -354,7 +355,7 @@ body.fs-big .article .mdh{font-size:19px}
 <!-- AI 陪练：全局悬浮按钮（任意页面可见） -->
 <div id="aiFabWrap">
   <div id="aiFabTip" class="hide">👋 随时开口练英语<br><b style="color:var(--azure-d)">点我开始对话</b></div>
-  <button id="aiFab" onclick="aiOpen()" aria-label="AI陪练">
+  <button id="aiFab" onclick="aiFabClick()" aria-label="AI陪练（可沿右侧上下拖动调整位置）">
     <span class="ring"><img src="img/ai_fab.png" alt=""></span>
     <span class="lab">AI陪练</span>
   </button>
@@ -1975,6 +1976,72 @@ function aiEndSession(){
     for(var j=0;j<all.length;j++){ if(all[j].id === cur){ document.getElementById('aiVoiceName').textContent = all[j].zh; break; } }
   }catch(e){}
 })();
+
+/* 悬浮按钮：沿右侧上下拖动 + 位置记忆（轻点=打开对话，按住滑动=移动位置） */
+(function(){
+  var fab = document.getElementById('aiFab');
+  if(!fab) return;
+  var TH = 8;                   /* 超过 8px 位移才算拖动，否则视为点击 */
+  var dragging = false, moved = false, y0 = 0, ty0 = 0;
+  fab._ty = 0;
+
+  function bounds(){            /* translateY 允许区间（相对默认位置，上下留 8px 安全边） */
+    var vh = window.innerHeight, fh = fab.offsetHeight;
+    var bottom = parseFloat(getComputedStyle(fab).bottom) || 78;
+    var top = vh - bottom - fh; /* 默认布局的视口 top */
+    return { up: -top + 8, down: vh - top - fh - 8 };
+  }
+  function setTy(ty){
+    var b = bounds();
+    ty = Math.max(b.up, Math.min(b.down, ty));
+    fab.style.transform = 'translateY(' + ty.toFixed(1) + 'px)';
+    fab._ty = ty;
+  }
+
+  /* 启动恢复上次拖放位置（clamp 保证不同屏高下仍在屏内） */
+  try{
+    var saved = store.get('aiFabY', null);
+    if(saved !== null && !isNaN(saved)) setTy(Number(saved));
+  }catch(e){}
+
+  fab.addEventListener('pointerdown', function(e){
+    if(dragging) return;
+    if(e.button !== undefined && e.button > 0) return;   /* 仅左键/触摸 */
+    dragging = true; moved = false;
+    y0 = e.clientY; ty0 = fab._ty;
+    fab.style.animation = 'none';                        /* 停掉入场动画，避免读取布局受影响 */
+    try{ fab.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  fab.addEventListener('pointermove', function(e){
+    if(!dragging) return;
+    var dy = e.clientY - y0;
+    if(!moved){
+      if(Math.abs(dy) < TH) return;
+      moved = true; fab.classList.add('grip');
+      var t = document.getElementById('aiFabTip'); if(t) t.classList.add('hide');
+    }
+    setTy(ty0 + dy);
+    e.preventDefault();
+  });
+  function up(e){
+    if(!dragging) return;
+    dragging = false;
+    fab.classList.remove('grip');
+    if(moved){
+      store.set('aiFabY', fab._ty);   /* 记住位置 */
+      fab._dragClick = 1;             /* 拖动后拦截随后的 click，避免误开对话 */
+    }
+  }
+  fab.addEventListener('pointerup', up);
+  fab.addEventListener('pointercancel', up);
+  /* 屏幕/窗口尺寸变化：重新 clamp 位置 */
+  window.addEventListener('resize', function(){ if(fab._ty) setTy(fab._ty); });
+})();
+function aiFabClick(){
+  var fab = document.getElementById('aiFab');
+  if(fab && fab._dragClick){ fab._dragClick = 0; return; }  /* 刚拖完的 click 不算点击 */
+  aiOpen();
+}
 
 boot();
 </script>
