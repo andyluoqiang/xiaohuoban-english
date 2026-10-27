@@ -343,8 +343,11 @@ body.fs-big .article .mdh{font-size:19px}
 #aiCodeDlg #aiCodeOk{background:linear-gradient(135deg,#0b3d91,#1a5fb4);color:#fff;box-shadow:0 5px 14px rgba(11,61,145,.3)}
 #aiCodeDlg #aiCodeNo{background:#eef2f7;color:var(--muted)}
 #aiCodeDlg .codein{margin-top:10px}
+#aiCodeDlg .codein{margin-top:10px}
 #aiCodeDlg .codein input{width:100%;box-sizing:border-box;border:1.5px solid var(--line);border-radius:13px;padding:11px 13px;font-size:15px;letter-spacing:1.5px;font-family:inherit;color:var(--ink);outline:none;text-align:center;background:#fff}
 #aiCodeDlg .codein input:focus{border-color:var(--azure)}
+#aiCodeDlg .aiCodeHint{font-size:11px;color:#9aa5b8;text-align:center;margin:3px 0 0;line-height:1.6}
+#aiCodeDlg .aiCodeHint a{color:var(--azure-d);text-decoration:underline;word-break:break-all}
 .aiclose{background:linear-gradient(135deg,#0b3d91,#1a5fb4);color:#fff;box-shadow:0 6px 16px rgba(11,61,145,.35)}
 </style>
 </head>
@@ -394,6 +397,7 @@ body.fs-big .article .mdh{font-size:19px}
         <div class="micico">🔐</div>
         <h3>输入访问码</h3>
         <div class="micdesc">AI 陪练为<b>私人服务</b><br>请输入访问码验证后开始对话</div>
+        <div class="aiCodeHint">没有访问码？请联系作者获取：<a href="mailto:luoqiang5282000@126.com">luoqiang5282000@126.com</a></div>
         <div class="codein"><input id="aiCodeIn" type="password" maxlength="32" autocomplete="off" placeholder="字母 / 数字" onkeydown="if(event.key==='Enter')aiCodeSubmit()"></div>
         <div class="mibtns">
           <button id="aiCodeNo" onclick="aiCodeCancel()">先不用</button>
