@@ -201,6 +201,10 @@ body.fs-big .article .mdh{font-size:19px}
 .wfav.on{color:var(--heart)}
 
 /* radio */
+.rcats{display:flex;gap:8px;padding:6px 4px 10px;flex-wrap:wrap}
+.rcat{flex:1;min-width:58px;border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:7px 0;font-size:12.5px;color:var(--muted);cursor:pointer;font-family:inherit;transition:all .15s}
+.rcat.on{background:linear-gradient(135deg,#a1272c,#c6353a);border-color:#c6353a;color:#fff;font-weight:700}
+.ktag.hls{background:#fff4e6;color:#c47a12}
 .dropdown{margin:11px 14px 0;position:relative;z-index:5}
 .ddbtn{width:100%;display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--line);border-radius:11px;padding:10px 13px;font-family:inherit;font-size:13px;color:var(--ink);cursor:pointer}
 .ddbtn svg{width:15px;height:15px;fill:none;stroke:#c6353a;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
@@ -422,6 +426,7 @@ body.fs-big .article .mdh{font-size:19px}
   </div>
 </div>
 
+<script src="assets/hls.min.js"></script>
 <script>
 'use strict';
 /* ============ English Companion H5 App ============ */
@@ -468,7 +473,7 @@ var favWd = store.get('favWd', {});   // {word:{zh,ph}}
 var state = {
   view: 'home', type:'audio', diff:'Beginning',
   prog: null, ep: null, epDiff: '',
-  radioState: 'all', radioCur: null,
+  radioState: 'all', radioCat: 'all', radioCur: null,
   subview: null
 };
 var diffName = {Beginning:'初级', Intermediate:'中级', Advanced:'高级'};
@@ -477,6 +482,30 @@ var typeName = {audio:'音频', video:'视频'};
 /* audio */
 var h5audio = NativePlayer ? null : new Audio();
 var curPlay = { kind:null, url:null, title:'', sub:'' }; // kind: 'ep'|'radio', 'ep' with epItem
+var _hls = null; /* HLS 直播播放实例 */
+function isHlsUrl(u){ return /\.m3u8($|\?)/i.test(u || ''); }
+function stopHls(){ if(_hls){ try{ _hls.destroy(); }catch(e){} _hls = null; } }
+function playStream(abs, title, sub){
+  /* 返回 true 表示已由 HLS 链路接管；false 走普通 audio */
+  if(!isHlsUrl(abs)) return false;
+  stopHls();
+  /* Android / 桌面 Chrome / iOS16+：hls.js 接管（MSE 支持） */
+  if(window.Hls && Hls.isSupported()){
+    _hls = new Hls();
+    _hls.loadSource(abs);
+    _hls.attachMedia(h5audio);
+    _hls.on(Hls.Events.MANIFEST_PARSED, function(){ h5audio.play().catch(function(){}); });
+    _hls.on(Hls.Events.ERROR, function(ev, data){ if(data && data.fatal) toast('电台连接中，请稍候'); });
+    return true;
+  }
+  /* iOS 旧版（无 MSE）：原生 HLS 兜底（只认 'probably'，'maybe' 不可靠） */
+  try{
+    if(h5audio.canPlayType && h5audio.canPlayType('application/vnd.apple.mpegurl') === 'probably'){
+      h5audio.src = abs; h5audio.play().catch(function(){}); return true;
+    }
+  }catch(e){}
+  return false;
+}
 
 function toast(msg){
   var t = document.getElementById('toast');
@@ -492,17 +521,19 @@ function playEp(url, title, sub){
   var abs = absUrl(url);
   curPlay = {kind:'ep', url:abs, title:title, sub:sub};
   if(NativePlayer){ Bridge.play(abs, title, sub); }
-  else { h5audio.src = abs; h5audio.play().catch(function(){}); }
+  else if(playStream(abs)){}
+  else { stopHls(); h5audio.src = abs; h5audio.play().catch(function(){}); }
 }
 function playRadio(url, title, sub){
   var abs = absUrl(url);
   curPlay = {kind:'radio', url:abs, title:title, sub:sub};
   if(NativePlayer){ Bridge.playLive(abs, title, sub); }
-  else { h5audio.src = abs; h5audio.play().catch(function(e){ toast('电台连接中，请稍候'); }); }
+  else if(playStream(abs)){}
+  else { stopHls(); h5audio.src = abs; h5audio.play().catch(function(e){ toast('电台连接中，请稍候'); }); }
 }
 function audioPause(){ if(NativePlayer) Bridge.pause(); else h5audio.pause(); }
 function audioResume(){ if(NativePlayer) Bridge.resume(); else h5audio.play().catch(function(){}); }
-function audioStop(){ if(NativePlayer) Bridge.stop(); else { h5audio.pause(); h5audio.currentTime = 0; } curPlay.kind = null; }
+function audioStop(){ stopHls(); if(NativePlayer) Bridge.stop(); else { h5audio.pause(); h5audio.currentTime = 0; } curPlay.kind = null; }
 function audioSeek15(dir){
   if(NativePlayer){ Bridge.skip15(dir > 0 ? 1 : 0); }
   else { try{ h5audio.currentTime = Math.max(0, h5audio.currentTime + dir); }catch(e){} }
@@ -1277,6 +1308,7 @@ function tmplRadio(){
     h += '<button class="ddopt'+(state.radioState===s?' on':'')+'" onclick="setRadioState(event,\''+esc(s)+'\')">'+states[s].zh+'<small>'+states[s].n+'</small></button>';
   });
   h += '</div></div>';
+  h += '<div class="rcats">' + catTab('all','全部') + catTab('news','新闻') + catTab('finance','财经') + catTab('music','音乐') + '</div>';
   h += '<div id="stationList">';
   h += radioListHTML();
   h += '</div>';
@@ -1288,7 +1320,7 @@ function tmplRadio(){
       + '<span class="mpm"><b>'+esc(state.radioCur.call)+' · '+esc(state.radioCur.name)+'</b><span>'+esc(state.radioCur.stateZh)+' · LIVE 直播</span></span>'
       + '<button class="mpbtn" onclick="toggleRadio()">'+(playerState.playing?'❚❚':'▶')+'</button></div>';
   }
-  h += '<div class="emptycard" style="border-style:solid;box-shadow:0 1px 5px rgba(15,30,51,.06)">📡 '+M.stations.length+' 个美国公共电台 / '+Object.keys(states).length+' 州<br><span style="font-size:10.5px">电台库由服务器维护，可远程增补</span></div>';
+  h += '<div class="emptycard" style="border-style:solid;box-shadow:0 1px 5px rgba(15,30,51,.06)">📡 '+M.stations.length+' 个电台 / '+Object.keys(states).length+' 个地区<br><span style="font-size:10.5px">电台库由服务器维护，可远程增补 · HLS 直播由 hls.js 支持</span></div>';
   h += '<div style="height:14px"></div></div></div>';
   h += navBar('radio');
   return h;
@@ -1297,9 +1329,16 @@ function radioStateName(){
   var s = (M.stations.filter(function(x){return x.state===state.radioState;})[0]||{});
   return s.stateZh || state.radioState;
 }
+function catKey(s){ if(s && s.cat) return s.cat; return (s && s.kind==='music') ? 'music' : 'news'; }
+function catName(s){ return {news:'新闻', finance:'财经', music:'音乐', talk:'谈话'}[catKey(s)] || catKey(s); }
+function catTab(k, zh){ return '<button class="rcat'+(state.radioCat===k?' on':'')+'" onclick="setRadioCat(event,\''+k+'\')">'+zh+'</button>'; }
+function setRadioCat(ev, k){ ev.stopPropagation(); state.radioCat = k; render('radio'); }
 function radioListHTML(){
-  var list = M.stations.filter(function(s){ return state.radioState==='all' || s.state===state.radioState; });
-  if(!list.length) return '<div class="emptycard">该州暂无内置电台</div>';
+  var list = M.stations.filter(function(s){
+    return (state.radioState==='all' || s.state===state.radioState)
+        && (state.radioCat==='all' || catKey(s)===state.radioCat);
+  });
+  if(!list.length) return '<div class="emptycard">该分类暂无内置电台</div>';
   var h = '';
   list.forEach(function(s){
     var cur = curPlay.kind==='radio' && state.radioCur && state.radioCur.call===s.call;
@@ -1308,7 +1347,7 @@ function radioListHTML(){
       + '<button class="stplay"><svg viewBox="0 0 24 24">'+(playing?'<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>':'<path d="M8 5v14l11-7z"/>')+'</svg></button>'
       + '<span class="sinfo"><span class="sname"><b>'+esc(s.call)+(s.freq?' '+esc(s.freq):'')+'</b>'+(playing?'<span class="livedot"><i></i>LIVE</span>':(cur?'<span class="livedot" style="color:#8e99ad"><i style="background:#8e99ad"></i>连接中</span>':''))+'</span>'
       + '<span class="sdesc">'+esc(s.name)+'</span>'
-      + '<span class="smeta"><span class="ktag '+(s.kind==='music'?'music':'news')+'">'+(s.kind==='music'?'音乐':'新闻谈话')+'</span><span class="ktag">'+s.codec+' '+(s.bitrate||'')+'k</span><span class="ktag">'+esc(s.stateZh)+'</span></span></span>'
+      + '<span class="smeta"><span class="ktag '+(catKey(s)==='music'?'music':'news')+'">'+catName(s)+'</span><span class="ktag">'+esc(s.codec||'')+' '+(s.bitrate||'')+'k</span>'+(s.fmt==='hls'?'<span class="ktag hls">HLS</span>':'')+'<span class="ktag">'+esc(s.stateZh)+'</span></span></span>'
       + '<button class="stfav'+(favSt[s.call]?' on':'')+'" onclick="togStFav(event,\''+esc(s.call).replace(/'/g,"\\'")+'\')">'+(favSt[s.call]?'♥':'♡')+'</button></div>';
   });
   return h;
@@ -1357,7 +1396,7 @@ function openRadioFav(){
     var playing2 = cur2 && playerState.playing;
     h += '<div class="station'+(cur2?' playing':'')+'"><button class="stplay" onclick="stationTap(\''+esc(s.call).replace(/'/g,"\\'")+'\')"><svg viewBox="0 0 24 24">'+(playing2?'<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>':'<path d="M8 5v14l11-7z"/>')+'</svg></button>'
       + '<span class="sinfo" onclick="stationTap(\''+esc(s.call).replace(/'/g,"\\'")+'\')"><span class="sname"><b>'+esc(s.call)+(s.freq?' '+esc(s.freq):'')+'</b></span>'
-      + '<span class="sdesc">'+esc(s.name)+'</span><span class="smeta"><span class="ktag '+(s.kind==='music'?'music':'news')+'">'+(s.kind==='music'?'音乐':'新闻')+'</span><span class="ktag">'+esc(s.stateZh)+'</span></span></span>'
+      + '<span class="sdesc">'+esc(s.name)+'</span><span class="smeta"><span class="ktag '+(catKey(s)==='music'?'music':'news')+'">'+catName(s)+'</span>'+(s.fmt==='hls'?'<span class="ktag hls">HLS</span>':'')+'<span class="ktag">'+esc(s.stateZh)+'</span></span></span>'
       + '<button class="stfav on" onclick="togStFav(event,\''+esc(s.call).replace(/'/g,"\\'")+'\')">♥</button></div>';
   });
   if(!any) h += '<div class="emptycard">♡ 还没有收藏的电台<br><b>电台卡右侧点 ♡ 收藏</b></div>';
