@@ -24,9 +24,10 @@ body.swiping{-webkit-user-select:none;user-select:none}
 .appbar{flex-shrink:0;color:#fff;padding:10px 14px 12px;background:linear-gradient(135deg,#0b3d91,#1a5fb4);display:flex;align-items:center;gap:10px;padding-top:calc(10px + env(safe-area-inset-top))}
 .appbar .ttl{font-size:17px;font-weight:700}
 .appbar .cnt{font-size:10.5px;background:rgba(255,255,255,.18);border-radius:12px;padding:2px 9px}
-.appbar .favicon{margin-left:auto;width:31px;height:31px;border-radius:50%;border:none;background:rgba(255,255,255,.2);color:#fff;font-size:15px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0}
+.appbar .favicon{margin-left:auto;width:31px;height:31px;border-radius:50%;border:none;background:rgba(255,255,255,.2);color:#fff;font-size:15px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;white-space:nowrap}
 .appbar .favicon.on{color:var(--amber)}
-.appbar .favicon .fb{position:absolute;top:-4px;right:-4px;min-width:15px;height:15px;border-radius:8px;background:var(--amber);color:var(--ink);font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.appbar .favicon svg{width:16px;height:16px;fill:currentColor;stroke:none;display:block;flex:0 0 auto}
+.appbar .favicon .fb{position:absolute;top:-4px;right:-4px;z-index:2;min-width:15px;height:15px;border-radius:8px;background:var(--amber);color:var(--ink);font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 4px}
 .appbar.radio-bar{background:linear-gradient(135deg,#a1272c,#c6353a)}
 .appbar.word-bar{background:linear-gradient(135deg,#0b3d91,#2f7ad4)}
 
@@ -742,7 +743,7 @@ function tmplHome(){
   var progs = programsOf();
   var h = '';
   h += '<div class="appbar"><span class="ttl">英语小伙伴</span><span class="cnt">'+totalEpisodes()+' 集</span>'
-    + '<button class="favicon'+(Object.keys(favEp).length?' on':'')+'" onclick="openHomeFav(this)">♥'+favBadge()+'</button></div>';
+    + '<button class="favicon'+(Object.keys(favEp).length?' on':'')+'" onclick="openHomeFav(this)">'+HEART_SVG+favBadge()+'</button></div>';
   h += '<div class="view show"><div class="scroll">';
   h += '<div class="seg" id="segType">'
     + '<button class="'+(state.type==='audio'?'on':'')+'" onclick="setType(\'audio\')">🎧 音频课程</button>'
@@ -783,6 +784,8 @@ function favBadge(){
   var n = 0; Object.keys(favEp).forEach(function(p){ n += favEp[p].length; });
   return n ? '<span class="fb">'+n+'</span>' : '';
 }
+/* 收藏按钮心形图标：用内联SVG替代文本♥，避免Android WebView把♥渲染成彩色emoji或文字换行导致错乱 */
+var HEART_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
 function setType(t){ state.type = t; render('home'); }
 function setDiff(d){ state.diff = d; render('home'); }
 function openProg(name){ state.prog = name; render('progpage'); }
@@ -842,7 +845,7 @@ function syncBarFav(title, prog){
 function openHomeFav(btn){
   state.subview = 'homefav';
   var app = document.getElementById('app');
-  var h = '<div class="appbar"><span class="ttl">英语小伙伴</span><span class="cnt">收藏</span><button class="favicon on" onclick="render(\'home\')">♥ '+(function(){var n=0;Object.keys(favEp).forEach(function(p){n+=favEp[p].length;});return n;})()+'</button></div>';
+  var h = '<div class="appbar"><span class="ttl">英语小伙伴</span><span class="cnt">收藏</span><button class="favicon on" onclick="render(\'home\')">'+HEART_SVG+'<span class="fb">'+(function(){var n=0;Object.keys(favEp).forEach(function(p){n+=favEp[p].length;});return n;})()+'</span></button></div>';
   h += '<div class="view show"><div class="scroll">';
   h += '<div class="favhead"><span class="fi">♥</span><span class="ftext"><b>我的收藏</b><span>· '+(function(){var n=0;Object.keys(favEp).forEach(function(p){n+=favEp[p].length;});return n;})()+' 课</span></span></div>';
   var any = false;
@@ -1249,7 +1252,7 @@ function togWordFav(btn, word){
 function tmplWordbook(){
   var h = '';
   h += '<div class="appbar word-bar"><span class="ttl">生词本</span><span class="cnt" id="wbCount">'+Object.keys(favWd).length+' 词</span>'
-    + '<button class="favicon'+(Object.keys(favWd).length?' on':'')+'" onclick="openWbFav()">♥<span class="fb">'+Object.keys(favWd).length+'</span></button></div>';
+    + '<button class="favicon'+(Object.keys(favWd).length?' on':'')+'" onclick="openWbFav()">'+HEART_SVG+'<span class="fb">'+Object.keys(favWd).length+'</span></button></div>';
   h += '<div class="view show" id="wbMain"><div class="scroll">';
   h += '<div class="searchbox"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>'
     + '<input id="wbSearch" placeholder="搜索单词或释义，如：yarn / 纱线" oninput="wbFilter()"></div><div id="wbList">';
@@ -1297,7 +1300,7 @@ function tmplRadio(){
   M.stations.forEach(function(s){ states[s.state] = states[s.state] || {zh:s.stateZh, n:0}; states[s.state].n++; });
   var h = '';
   h += '<div class="appbar radio-bar"><span class="ttl">英语小伙伴 · Radio</span><span class="cnt">LIVE</span>'
-    + '<button class="favicon'+(Object.keys(favSt).length?' on':'')+'" onclick="openRadioFav()">♥<span class="fb">'+Object.keys(favSt).length+'</span></button></div>';
+    + '<button class="favicon'+(Object.keys(favSt).length?' on':'')+'" onclick="openRadioFav()">'+HEART_SVG+'<span class="fb">'+Object.keys(favSt).length+'</span></button></div>';
   h += '<div class="view show" id="rdMain"><div class="scroll">';
   h += '<div class="dropdown"><button class="ddbtn" id="ddBtn" onclick="toggleDd(event)">'
     + '<svg viewBox="0 0 24 24"><path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>'
@@ -1385,7 +1388,7 @@ function openRadioFav(){
   state.subview = 'radiofav';
   var app = document.getElementById('app');
   var h = '<div class="appbar radio-bar"><span class="ttl">英语小伙伴 · Radio</span><span class="cnt">LIVE</span>'
-    + '<button class="favicon on" onclick="render(\'radio\')">♥</button></div>';
+    + '<button class="favicon on" onclick="render(\'radio\')">'+HEART_SVG+'</button></div>';
   h += '<div class="view show"><div class="scroll">';
   h += '<div class="favhead"><span class="fi rd">♥</span><span class="ftext"><b>收藏的电台</b><span>· '+Object.keys(favSt).length+' 台</span></span>'
     + '<button class="backbtn rd" onclick="render(\'radio\')">← 返回电台</button></div><div>';
