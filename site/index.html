@@ -1372,7 +1372,8 @@ function stationTap(call){
     playRadio(s.url, s.call+(s.freq?' '+s.freq:''), s.name+' · '+s.stateZh);
     state.radioCur = s; updatePlayBtn(true);
   }
-  render('radio');
+  // 在收藏页内播放时保持停留在收藏页，不跳回主电台列表
+  if(state.subview === 'radiofav'){ openRadioFav(); } else { render('radio'); }
 }
 function toggleRadio(){
   if(playerState.playing){ audioPause(); updatePlayBtn(false); } else { audioResume(); updatePlayBtn(true); }
@@ -1382,7 +1383,8 @@ function togStFav(ev, call){
   ev.stopPropagation();
   if(favSt[call]) delete favSt[call]; else favSt[call] = 1;
   store.set('favSt', favSt);
-  render('radio');
+  // 在收藏页内增减收藏时同样停留在收藏页
+  if(state.subview === 'radiofav'){ openRadioFav(); } else { render('radio'); }
 }
 function openRadioFav(){
   state.subview = 'radiofav';
