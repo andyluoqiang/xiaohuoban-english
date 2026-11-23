@@ -671,15 +671,30 @@ function boot(){
   try{ var _fs = localStorage.getItem('voa-fs'); if(_fs){ document.body.classList.remove('fs-mid','fs-big'); document.body.classList.add(_fs); } }catch(e){}
   Promise.all([
     // ★ 加时间戳绕过任何层级的 manifest 缓存（曾出现线上旧版损坏 manifest 被缓存导致加载失败）
-    loadJSON(apiUrl('api/manifest.json') + '?v=' + Date.now()),
+    loadJSON(apiUrl('api/manifest.json') + '?v=' + Date.now()).catch(function(){
+      // ★ VPS/网络不可达时降级为空清单：学习区显示空态，广播/生词本/设置不受影响
+      // （SW 生效时会在 SW 层拿到缓存清单，这里仅在 SW 未生效或首次离线时兜底）
+      return null;
+    }),
     loadJSON(apiUrl('api/dict/_meta.json') + '?v=' + Date.now()).catch(function(){ return {}; }),
-    loadJSON(apiUrl('api/stations.json') + '?v=' + Date.now()).catch(function(){ return []; })
+    loadJSON(apiUrl('api/stations.json') + '?v=' + Date.now()).catch(function(){
+      // ★ 电台列表第二道保险：VPS 不可达时用上次成功拉取的本地缓存（SW 之外再兑一层）
+      try{ var c = JSON.parse(localStorage.getItem('xb_stations_cache') || '[]'); if(c && c.length) return c; }catch(e){}
+      return [];
+    })
   ]).then(function(a){
     M.manifest = a[0]; DICT_META = a[1] || {}; M.stations = a[2] || [];
+    if(M.stations.length){ try{ localStorage.setItem('xb_stations_cache', JSON.stringify(M.stations)); }catch(e){} }
     render('home');
+    if(!M.manifest) toast('云清单暂不可达，电台仍可收听');
   }).catch(function(e){
     document.getElementById('app').innerHTML = '<div class="loading">内容加载失败，请检查网络后重试<br><br><button onclick="location.reload()" style="padding:8px 20px;border-radius:18px;border:none;background:#1a5fb4;color:#fff;font-size:13px">重新加载</button></div>';
   });
+}
+/* ★ 离线兑底 Service Worker：VPS 不可达时页面壳与数据清单走本地缓存；
+   电台流本身直连电台 CDN 经本站，不受影响（https/localhost 环境） */
+if('serviceWorker' in navigator){
+  try{ navigator.serviceWorker.register(apiUrl('sw.js')).catch(function(){}); }catch(e){}
 }
 
 /* ---------- router ---------- */
@@ -793,7 +808,8 @@ function openProg(name){ state.prog = name; render('progpage'); }
 /* ---------- template: prog page ---------- */
 function progEps(){ return programsOf().filter(function(p){return p.n===state.prog;})[0] || {eps:[]}; }
 function tmplProgPage(){
-  var p = progEps(); var t = M.manifest.categories[state.type][state.diff];
+  var p = progEps(); var t = (M.manifest && M.manifest.categories[state.type]) ? M.manifest.categories[state.type][state.diff] : {};
+  t = t || {};
   var h = '';
   h += '<div class="pptop"><button class="backbtn" onclick="render(\'home\')">‹</button>'
     + '<span class="tt"><b>'+esc(state.prog)+'</b><span>'+(diffName[state.diff]||'')+' · '+(typeName[state.type]||'')+' · 共 '+p.eps.length+' 集</span></span></div>';
