@@ -68,4 +68,10 @@ public class JsBridge {
     public void openBrowser() {
         activity.nativeOpenBrowser();
     }
+
+    /** App 版本号（BuildConfig 取自 build.gradle versionName，编译期自动准确） */
+    @JavascriptInterface
+    public String getAppVersion() {
+        return BuildConfig.VERSION_NAME;
+    }
 }

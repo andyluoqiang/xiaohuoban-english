@@ -446,6 +446,12 @@ var store = {
 var Bridge = window.Xiaohuoban ? window.Xiaohuoban : null;
 var NativePlayer = !!Bridge;
 
+/* ★ 版本号：优先取原生 Bridge 的真实 APK 版本（编译期自动准确）；网页版/无桥接时用 H5 常量 */
+var APP_VERSION = (function(){
+  try{ if(Bridge && typeof Bridge.getAppVersion === 'function'){ var v = Bridge.getAppVersion(); if(v) return 'v' + v; } }catch(e){}
+  return 'v1.0.7';
+})();
+
 var M = { manifest: null, dict: null, stations: [] };
 /* 词典按需加载：不再启动时全量拉 dict.json（2.8MB，弱网下导致加载失败）。
    改为按首字母分块，点词时才加载对应块，缓存于 DICT；meta 仅含总数供展示。 */
@@ -1448,7 +1454,7 @@ function tmplSettings(){
   }
   h += '<div class="progrow" style="cursor:default" onclick="location.reload()"><div class="ph"><span class="pic">⟳</span><span class="pn">检查内容更新</span><span class="pc">刷新</span></div></div>';
   h += '<div class="sec-label">关于</div>';
-  h += '<div class="progrow" style="cursor:default"><div class="ph"><span class="pic">ℹ</span><span class="pn">英语小伙伴</span><span class="pc">v1.0.0</span></div></div>';
+  h += '<div class="progrow" style="cursor:default"><div class="ph"><span class="pic">ℹ</span><span class="pn">英语小伙伴</span><span class="pc">'+APP_VERSION+'</span></div></div>';
   h += '<div class="progrow" style="cursor:default"><div class="ph"><span class="pic">☁</span><span class="pn">服务器</span><span class="pc">'+location.host+'</span></div></div>';
   h += '<div class="progrow" style="cursor:default"><div class="ph"><span class="pic">' + (NativePlayer?'📱':'🌐') + '</span><span class="pn">运行环境</span><span class="pc">'+(NativePlayer?'App（原生播放）':'浏览器')+'</span></div></div>';
   h += '<div style="height:14px"></div></div></div>';
