@@ -680,6 +680,8 @@ function boot(){
     loadJSON(apiUrl('api/stations.json') + '?v=' + Date.now()).catch(function(){
       // ★ 电台列表第二道保险：VPS 不可达时用上次成功拉取的本地缓存（SW 之外再兑一层）
       try{ var c = JSON.parse(localStorage.getItem('xb_stations_cache') || '[]'); if(c && c.length) return c; }catch(e){}
+      // ★ 第三道保险：APK 内置离线壳注入的电台快照（新装用户首次即离线也能听广播）
+      try{ if(window.__LOCAL_STATIONS__ && window.__LOCAL_STATIONS__.length) return window.__LOCAL_STATIONS__; }catch(e){}
       return [];
     })
   ]).then(function(a){
@@ -692,8 +694,8 @@ function boot(){
   });
 }
 /* ★ 离线兑底 Service Worker：VPS 不可达时页面壳与数据清单走本地缓存；
-   电台流本身直连电台 CDN 经本站，不受影响（https/localhost 环境） */
-if('serviceWorker' in navigator){
+   电台流本身直连电台 CDN 经本站，不受影响（https/localhost 环境；file:// 本地壳下跳过） */
+if('serviceWorker' in navigator && location.protocol !== 'file:'){
   try{ navigator.serviceWorker.register(apiUrl('sw.js')).catch(function(){}); }catch(e){}
 }
 

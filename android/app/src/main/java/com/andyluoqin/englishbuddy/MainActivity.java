@@ -36,6 +36,8 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import java.util.Locale;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 /**
  * 主界面：WebView 承载 H5 应用，通过 JS Bridge 调用原生能力。
@@ -44,6 +46,10 @@ public class MainActivity extends AppCompatActivity {
 
     public static final String LOAD_URL = "https://www.jxonline.top/app/index.html";
     private static final String HOST_ALLOW = "www.jxonline.top";
+    /* ★ 离线壳：APK assets 内置的完整页面（含电台快照），VPS 不可达时自动回退到本地壳 */
+    private static final String LOCAL_SHELL_URL = "file:///android_asset/app/index.html";
+    private static final int PROBE_TIMEOUT_MS = 4000;
+    private boolean localShellLoaded = false;
 
     private WebView web;
     private View splash;
@@ -129,6 +135,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
+                if (url.startsWith("file:")) {
+                    return false; // 本地离线壳内的导航留在 App 内
+                }
                 String host = request.getUrl().getHost();
                 if (host != null && host.equalsIgnoreCase(HOST_ALLOW)) {
                     return false; // 站内导航留在 App 内
@@ -143,7 +152,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
-                if (LOAD_URL.equals(url) || url.contains("jxonline.top")) {
+                if (LOAD_URL.equals(url) || url.contains("jxonline.top") || url.contains("android_asset")) {
                     pageLoaded = true;
                     loadRetries = 0;
                 }
@@ -174,7 +183,13 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }, 2000);
                     } else {
-                        showErrorPage(desc);
+                        // ★ 重试耗尽：优先回退到 APK 内置离线壳（至少能听广播），本地壳也失败才显错误页
+                        if (!localShellLoaded) {
+                            android.util.Log.w("EnglishBuddy", "online failed, falling back to local shell");
+                            loadLocalShell();
+                        } else {
+                            showErrorPage(desc);
+                        }
                     }
                 }
             }
@@ -259,7 +274,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        web.loadUrl(LOAD_URL);
+        probeAndLoad();
 
         tts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
             @Override
@@ -481,11 +496,12 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 loadRetries = 0;
                 pageLoaded = false;
+                localShellLoaded = false;
                 if (splash != null) {
                     splash.setVisibility(View.VISIBLE);
                 }
                 splashShownAt = System.currentTimeMillis();
-                web.loadUrl(LOAD_URL);
+                probeAndLoad();
                 handler.postDelayed(new Runnable() {
                     @Override
                     public void run() {
@@ -494,6 +510,51 @@ public class MainActivity extends AppCompatActivity {
                 }, 15000);
             }
         });
+    }
+
+    /* ---------------- 启动加载：线上优先，不可达则回退内置离线壳 ---------------- */
+
+    /** 后台短超时探测线上站点，可达则加载线上页（完整功能），否则直接加载本地壳（广播可用） */
+    private void probeAndLoad() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final boolean online = probeOnline();
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (online) {
+                            web.loadUrl(LOAD_URL);
+                        } else {
+                            android.util.Log.w("EnglishBuddy", "probe failed, loading local shell");
+                            loadLocalShell();
+                        }
+                    }
+                });
+            }
+        }, "probe-online").start();
+    }
+
+    private boolean probeOnline() {
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL(LOAD_URL).openConnection();
+            c.setRequestMethod("HEAD");
+            c.setConnectTimeout(PROBE_TIMEOUT_MS);
+            c.setReadTimeout(PROBE_TIMEOUT_MS);
+            c.setInstanceFollowRedirects(true);
+            int code = c.getResponseCode();
+            return code >= 200 && code < 400;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    private void loadLocalShell() {
+        localShellLoaded = true;
+        web.loadUrl(LOCAL_SHELL_URL);
     }
 
     void nativeOpenBrowser() {
