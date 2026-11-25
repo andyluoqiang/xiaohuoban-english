@@ -449,7 +449,7 @@ var NativePlayer = !!Bridge;
 /* ★ 版本号：优先取原生 Bridge 的真实 APK 版本（编译期自动准确）；网页版/无桥接时用 H5 常量 */
 var APP_VERSION = (function(){
   try{ if(Bridge && typeof Bridge.getAppVersion === 'function'){ var v = Bridge.getAppVersion(); if(v) return 'v' + v; } }catch(e){}
-  return 'v1.0.7';
+  return 'v1.0.8';
 })();
 
 var M = { manifest: null, dict: null, stations: [] };
@@ -670,7 +670,10 @@ var seeking = false;
 /* ---------- data loading ---------- */
 function loadJSON(url){
   // cache:'no-store' 强制每次启动拉取最新清单/词典，避免 App 缓存导致内容不更新
-  return fetch(url, {cache:'no-store'}).then(function(r){ if(!r.ok) throw new Error(url+' '+r.status); return r.json(); });
+  // ★ fetch 包进 Promise.resolve().then：file:// 本地壳等环境下 fetch 可能「同步抛异常」，
+  //   直接写在 Promise.all 数组里会让 boot() 整体崩溃、兜底链失效（真机断网曾复现）
+  return Promise.resolve().then(function(){ return fetch(url, {cache:'no-store'}); })
+    .then(function(r){ if(!r.ok) throw new Error(url+' '+r.status); return r.json(); });
 }
 function boot(){
   // 恢复用户上次选择的正文字号

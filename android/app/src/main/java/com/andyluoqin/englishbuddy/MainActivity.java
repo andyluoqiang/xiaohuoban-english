@@ -22,6 +22,7 @@ import android.view.animation.AlphaAnimation;
 import android.view.animation.Animation;
 import android.webkit.ConsoleMessage;
 import android.webkit.PermissionRequest;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -35,6 +36,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Locale;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -50,6 +54,10 @@ public class MainActivity extends AppCompatActivity {
     private static final String LOCAL_SHELL_URL = "file:///android_asset/app/index.html";
     private static final int PROBE_TIMEOUT_MS = 4000;
     private boolean localShellLoaded = false;
+    /* ★ 电台清单最后一道保险：启动时预读 APK assets 内置快照，页面加载完列表仍为空则直接注入 */
+    private static final String STATIONS_ASSET = "app/api/stations.json";
+    private volatile String stationsAssetJson = null;
+    private boolean stationsFallbackDone = false;
 
     private WebView web;
     private View splash;
@@ -157,6 +165,7 @@ public class MainActivity extends AppCompatActivity {
                     loadRetries = 0;
                 }
                 dismissSplash();
+                scheduleStationsGuard();
             }
 
             @Override
@@ -275,6 +284,14 @@ public class MainActivity extends AppCompatActivity {
         });
 
         probeAndLoad();
+
+        // ★ 后台预读 APK 内置电台快照（供页面列表为空时兜底注入）
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                stationsAssetJson = readAsset(STATIONS_ASSET);
+            }
+        }, "read-stations-asset").start();
 
         tts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
             @Override
@@ -555,6 +572,68 @@ public class MainActivity extends AppCompatActivity {
     private void loadLocalShell() {
         localShellLoaded = true;
         web.loadUrl(LOCAL_SHELL_URL);
+    }
+
+    /* ---------------- 电台清单原生兜底：页面加载完成后列表仍为空 → 从 assets 注入 ---------------- */
+
+    /** 页面加载完成 4 秒后检查电台列表；仍为空则注入 APK 内置快照并重渲染当前页 */
+    private void scheduleStationsGuard() {
+        stationsFallbackDone = false;
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (stationsFallbackDone) return;
+                stationsFallbackDone = true;
+                try {
+                    web.evaluateJavascript(
+                            "(typeof M!=='undefined'&&M&&M.stations&&M.stations.length)?M.stations.length:0",
+                            new ValueCallback<String>() {
+                                @Override
+                                public void onReceiveValue(String value) {
+                                    if (value == null || value.equals("0") || value.equals("null")) {
+                                        injectStationsFallback();
+                                    }
+                                }
+                            });
+                } catch (Exception ignored) {
+                }
+            }
+        }, 4000);
+    }
+
+    private void injectStationsFallback() {
+        String json = stationsAssetJson;
+        if (json == null || json.length() < 100) {
+            json = readAsset(STATIONS_ASSET); // 预读线程未完成时同步补读（13KB，极快）
+            stationsAssetJson = json;
+        }
+        if (json == null || json.length() < 100) return;
+        android.util.Log.w("EnglishBuddy", "stations empty, inject built-in snapshot (" + json.length() + " bytes)");
+        String js = "(function(){try{window.__LOCAL_STATIONS__=" + json + ";"
+                + "if(typeof M!=='undefined'&&M){M.stations=window.__LOCAL_STATIONS__;"
+                + "if(typeof render==='function'){render((typeof state!=='undefined'&&state&&state.view)?state.view:'home');}"
+                + "if(typeof toast==='function'){toast('已离线：使用内置电台列表');}"
+                + "}}catch(e){}})();";
+        try {
+            web.evaluateJavascript(js, null);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String readAsset(String path) {
+        InputStream is = null;
+        try {
+            is = getAssets().open(path);
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = is.read(buf)) > 0) bos.write(buf, 0, n);
+            return new String(bos.toByteArray(), "UTF-8");
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (is != null) try { is.close(); } catch (IOException ignored) { }
+        }
     }
 
     void nativeOpenBrowser() {
